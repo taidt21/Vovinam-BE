@@ -13,6 +13,8 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<Tournament> Tournaments => Set<Tournament>(); public DbSet<Athlete> Athletes => Set<Athlete>();
     public DbSet<CompetitionEvent> Events => Set<CompetitionEvent>();
     public DbSet<Registration> Registrations => Set<Registration>();
+    public DbSet<Match> Matches => Set<Match>();
+    public DbSet<PerformanceOrder> PerformanceOrders => Set<PerformanceOrder>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {

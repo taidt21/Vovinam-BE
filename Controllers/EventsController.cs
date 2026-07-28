@@ -27,10 +27,9 @@ public class EventsController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<EventDto>> Create(EventUpsertDto dto)
     {
-        var daTonTai = await _db.Events.AnyAsync(e => e.Ten.ToLower() == dto.Ten.Trim().ToLower());
+        var daTonTai = await _db.Events.AnyAsync(e => e.Ten.ToLower() == dto.Ten.Trim().ToLower() && e.NhomTuoi == dto.NhomTuoi);
         if (daTonTai)
-            return Conflict($"Đã có nội dung tên \"{dto.Ten}\" rồi — đổi tên khác để phân biệt (VD thêm \"(đồng đội)\" nếu đây là bản đội của cùng 1 bài).");
-
+            return Conflict($"Đã có nội dung tên \"{dto.Ten}\" ở Nhóm tuổi {dto.NhomTuoi} rồi.");
         var ev = new CompetitionEvent
         {
             Id = Guid.NewGuid(),
@@ -53,9 +52,9 @@ public class EventsController : ControllerBase
         var ev = await _db.Events.FindAsync(id);
         if (ev is null) return NotFound();
 
-        var daTonTai = await _db.Events.AnyAsync(e => e.Id != id && e.Ten.ToLower() == dto.Ten.Trim().ToLower());
+        var daTonTai = await _db.Events.AnyAsync(e => e.Id != id && e.Ten.ToLower() == dto.Ten.Trim().ToLower() && e.NhomTuoi == dto.NhomTuoi);
         if (daTonTai)
-            return Conflict($"Đã có nội dung tên \"{dto.Ten}\" rồi — đổi tên khác để phân biệt.");
+            return Conflict($"Đã có nội dung tên \"{dto.Ten}\" ở Nhóm tuổi {dto.NhomTuoi} rồi.");
 
         ev.Ten = dto.Ten;
         ev.Loai = ParseLoai(dto.Loai);
