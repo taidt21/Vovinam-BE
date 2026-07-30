@@ -23,7 +23,22 @@ public class MatchesController : ControllerBase
         var matches = await _db.Matches.ToListAsync();
         return Ok(matches.Select(ToDto));
     }
+    [HttpPut("{id}")]
+    public async Task<IActionResult> UpdateOne(Guid id, MatchUpdateDto dto)
+    {
+        var match = await _db.Matches.FindAsync(id);
+        if (match is null) return NotFound();
 
+        match.AthleteRedId = dto.AthleteRedId;
+        match.AthleteBlueId = dto.AthleteBlueId;
+        match.TrangThai = dto.TrangThai;
+        match.LyDoKetThuc = dto.LyDoKetThuc;
+        match.NguoiThangId = dto.NguoiThangId;
+        match.CourtId = dto.CourtId;
+
+        await _db.SaveChangesAsync();
+        return NoContent();
+    }
     [HttpPut("by-event/{eventId}")]
     public async Task<ActionResult<List<MatchDto>>> ReplaceForEvent(Guid eventId, List<MatchUpsertDto> matches)
     {
@@ -64,4 +79,5 @@ public class MatchesController : ControllerBase
         NguoiThangId = m.NguoiThangId,
         CourtId = m.CourtId,
     };
+
 }

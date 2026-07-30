@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using VovinamApi.Data;
 
@@ -11,9 +12,11 @@ using VovinamApi.Data;
 namespace vovinam_backend.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260728124555_AddQuyenResults")]
+    partial class AddQuyenResults
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -365,41 +368,6 @@ namespace vovinam_backend.Migrations
                     b.HasIndex("TeamId");
 
                     b.ToTable("PerformanceOrders");
-                });
-
-            modelBuilder.Entity("VovinamApi.Models.QuyenJudgeScore", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid?>("AthleteId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("CapNhatLuc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<decimal>("Diem")
-                        .HasPrecision(5, 2)
-                        .HasColumnType("decimal(5,2)");
-
-                    b.Property<Guid>("EventId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("GiamKhaoId")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<Guid?>("TeamId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("TenGiamKhao")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("QuyenJudgeScores");
                 });
 
             modelBuilder.Entity("VovinamApi.Models.QuyenResult", b =>

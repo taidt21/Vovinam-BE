@@ -15,7 +15,8 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<Registration> Registrations => Set<Registration>();
     public DbSet<Match> Matches => Set<Match>();
     public DbSet<PerformanceOrder> PerformanceOrders => Set<PerformanceOrder>();
-
+    public DbSet<QuyenResult> QuyenResults => Set<QuyenResult>();
+    public DbSet<QuyenJudgeScore> QuyenJudgeScores => Set<QuyenJudgeScore>();
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -50,5 +51,9 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
         builder.Entity<Registration>()
             .HasIndex(r => new { r.AthleteId, r.EventId })
             .IsUnique();
+
+        builder.Entity<QuyenResult>().Property(r => r.Diem).HasPrecision(5, 2);
+        builder.Entity<QuyenResult>().Property(r => r.DiemTru).HasPrecision(5, 2);
+        builder.Entity<QuyenJudgeScore>().Property(s => s.Diem).HasPrecision(5, 2);
     }
 }
