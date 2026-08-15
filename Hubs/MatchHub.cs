@@ -44,6 +44,15 @@ public class MatchHub : Hub
         _store.ClearQuyenState(courtId);
         await Clients.OthersInGroup(GroupName(courtId)).SendAsync("QuyenStateCleared", courtId);
     }
+
+    // Tab Bàn thư ký đang mở cho sân này ("doi_khang"/"quyen"/null) — quyết
+    // định màn hình trọng tài hiện gì, KHÔNG suy ra từ việc có dữ liệu sống
+    // hay không (dữ liệu có thể chưa kịp tạo dù đã chọn đúng tab).
+    public async Task SetActiveMode(string courtId, string? mode)
+    {
+        _store.SetActiveMode(courtId, mode);
+        await Clients.Group(GroupName(courtId)).SendAsync("ActiveModeUpdated", courtId, mode);
+    }
     // mau: "do" | "xanh". diem: 1 hoặc 2 — đúng 4 nút trên màn trọng tài.
     // tenTrongTai: tên hiển thị (backend không có bảng trọng tài riêng,
     // lấy thẳng tên từ chính thiết bị gửi lên để ghi log dễ đọc).

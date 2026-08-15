@@ -9,6 +9,7 @@ public class LiveCourtStateStore
     {
         public JsonNode? MatchState { get; set; }
         public JsonNode? QuyenState { get; set; }
+        public string? ActiveMode { get; set; } // "doi_khang" | "quyen" | null — tab BTK đang mở cho sân này
         public ConcurrentDictionary<string, JsonNode> RefereeScores { get; } = new();
     }
 
@@ -30,18 +31,32 @@ public class LiveCourtStateStore
         {
             matchState = s.MatchState,
             quyenState = s.QuyenState,
+            activeMode = s.ActiveMode,
             refereeScores = s.RefereeScores.Values.ToList(),
             log = GetLog(courtId),
         };
     }
 
-    public void SetMatchState(string courtId, JsonNode matchState) => GetOrCreate(courtId).MatchState = matchState;
+    public void SetActiveMode(string courtId, string? mode) => GetOrCreate(courtId).ActiveMode = mode;
+    public string? GetActiveMode(string courtId) => GetOrCreate(courtId).ActiveMode;
+
+    public void SetMatchState(string courtId, JsonNode matchState)
+    {
+        var s = GetOrCreate(courtId);
+        s.MatchState = matchState;
+        s.QuyenState = null; // 1 sân không thể vừa đối kháng vừa quyền cùng lúc
+    }
     public JsonNode? GetMatchState(string courtId) => GetOrCreate(courtId).MatchState;
 
     // Trạng thái sống của quyền — TÁCH RIÊNG khỏi MatchState (đối kháng),
     // vì 1 khu vực có thể lần lượt dùng cho cả 2 mục đích khác nhau tuỳ
     // lịch, không nên lẫn vào chung 1 chỗ.
-    public void SetQuyenState(string courtId, JsonNode quyenState) => GetOrCreate(courtId).QuyenState = quyenState;
+    public void SetQuyenState(string courtId, JsonNode quyenState)
+    {
+        var s = GetOrCreate(courtId);
+        s.QuyenState = quyenState;
+        s.MatchState = null; // ditto — ngược lại
+    }
     public JsonNode? GetQuyenState(string courtId) => GetOrCreate(courtId).QuyenState;
     public void ClearQuyenState(string courtId) => GetOrCreate(courtId).QuyenState = null;
 
@@ -114,14 +129,16 @@ public class LiveCourtStateStore
         }
     }
 
+    // MM:SS ở đây là số giây CÒN LẠI — đúng số mà đồng hồ đếm ngược trên
+    // màn hình đang hiện tại đúng thời điểm ghi log, không phải số giây
+    // đã trôi từ đầu hiệp.
     private string? ComputeMatchTimeLabel(string courtId)
     {
         if (!_courts.TryGetValue(courtId, out var state) || state.MatchState == null) return null;
         var ms = state.MatchState;
 
         var hiepNode = ms["hiepHienTai"];
-        var thoiGianHiepNode = ms["thoiGianHiepGiay"];
-        if (hiepNode == null || thoiGianHiepNode == null) return null;
+        if (hiepNode == null) return null;
 
         var currentRemaining = ComputeRemainingSeconds(courtId);
         if (currentRemaining == null) return null;
@@ -129,10 +146,7 @@ public class LiveCourtStateStore
         try
         {
             var hiep = hiepNode.GetValue<int>();
-            var thoiGianHiep = thoiGianHiepNode.GetValue<double>();
-            var elapsedInRound = Math.Max(0, thoiGianHiep - currentRemaining.Value);
-
-            var totalSeconds = (int)Math.Round(elapsedInRound);
+            var totalSeconds = (int)Math.Round(currentRemaining.Value);
             var mm = totalSeconds / 60;
             var ss = totalSeconds % 60;
             return $"Hiệp {hiep} - {mm:D2}:{ss:D2}";
