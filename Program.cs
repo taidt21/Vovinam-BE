@@ -49,8 +49,10 @@ builder.Services
         };
     });
 
-// Cổng đăng ký (React/Vite, chạy ở port riêng) gọi API qua trình duyệt —
-// cần CORS, khác hẳn hệ thống LAN vốn không cần vì luôn cùng gốc.
+// Cổng đăng ký (React/Vite, chạy ở port riêng lúc dev) gọi API qua trình
+// duyệt — cần CORS. Khi đã build+gộp vào wwwroot (cùng gốc, đúng cách
+// đang chạy thử ở đây) thì CORS này không còn tác dụng gì (không hại) vì
+// không còn cross-origin nữa.
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("PortalFrontend", policy =>
@@ -67,11 +69,13 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
+app.UseDefaultFiles();
+app.UseStaticFiles();
 app.UseCors("PortalFrontend");
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 app.MapHub<MatchHub>("/hubs/match");
+app.MapFallbackToFile("index.html");
 
 app.Run();

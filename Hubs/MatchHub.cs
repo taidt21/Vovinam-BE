@@ -32,7 +32,18 @@ public class MatchHub : Hub
         _store.ClearMatchState(courtId);
         await Clients.OthersInGroup(GroupName(courtId)).SendAsync("MatchStateCleared", courtId);
     }
+    public async Task PublishQuyenState(string courtId, JsonElement quyenState)
+    {
+        var node = JsonNode.Parse(quyenState.GetRawText());
+        if (node != null) _store.SetQuyenState(courtId, node);
+        await Clients.OthersInGroup(GroupName(courtId)).SendAsync("QuyenStateUpdated", courtId, quyenState);
+    }
 
+    public async Task ClearQuyenState(string courtId)
+    {
+        _store.ClearQuyenState(courtId);
+        await Clients.OthersInGroup(GroupName(courtId)).SendAsync("QuyenStateCleared", courtId);
+    }
     // mau: "do" | "xanh". diem: 1 hoặc 2 — đúng 4 nút trên màn trọng tài.
     // tenTrongTai: tên hiển thị (backend không có bảng trọng tài riêng,
     // lấy thẳng tên từ chính thiết bị gửi lên để ghi log dễ đọc).

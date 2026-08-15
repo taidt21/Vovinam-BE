@@ -29,6 +29,9 @@
 
 	<ItemGroup>
 	  <Folder Include="Data\" />
+	  <Folder Include="wwwroot\" />
 	</ItemGroup>
+
+
 
 </Project>

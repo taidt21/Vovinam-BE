@@ -9,6 +9,7 @@ public class QuyenJudgeScoreDto
     public string GiamKhaoId { get; set; } = string.Empty;
     public string TenGiamKhao { get; set; } = string.Empty;
     public decimal Diem { get; set; }
+    public string? ChiTietJson { get; set; }
     public DateTime CapNhatLuc { get; set; }
 }
 
@@ -20,4 +21,5 @@ public class QuyenJudgeScoreUpsertDto
     public string GiamKhaoId { get; set; } = string.Empty;
     public string TenGiamKhao { get; set; } = string.Empty;
     public decimal Diem { get; set; }
+    public string? ChiTietJson { get; set; }
 }

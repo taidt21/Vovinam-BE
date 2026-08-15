@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using VovinamApi.Data;
 using VovinamApi.DTOs;
@@ -8,6 +9,7 @@ namespace VovinamApi.Controllers;
 
 [ApiController]
 [Route("api/matches")]
+[Authorize(Roles = "Admin")]
 public class MatchesController : ControllerBase
 {
     private readonly ApplicationDbContext _db;
@@ -16,13 +18,14 @@ public class MatchesController : ControllerBase
     {
         _db = db;
     }
-
+    [Authorize(Roles = "Admin")]
     [HttpGet]
     public async Task<ActionResult<List<MatchDto>>> GetAll()
     {
         var matches = await _db.Matches.ToListAsync();
         return Ok(matches.Select(ToDto));
     }
+    [Authorize(Roles = "Admin")]
     [HttpPut("{id}")]
     public async Task<IActionResult> UpdateOne(Guid id, MatchUpdateDto dto)
     {
@@ -39,6 +42,7 @@ public class MatchesController : ControllerBase
         await _db.SaveChangesAsync();
         return NoContent();
     }
+    [Authorize(Roles = "Admin")]
     [HttpPut("by-event/{eventId}")]
     public async Task<ActionResult<List<MatchDto>>> ReplaceForEvent(Guid eventId, List<MatchUpsertDto> matches)
     {

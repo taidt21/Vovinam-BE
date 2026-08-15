@@ -40,6 +40,7 @@ public class QuyenJudgeScoresController : ControllerBase
         {
             existing.Diem = dto.Diem;
             existing.TenGiamKhao = dto.TenGiamKhao;
+            existing.ChiTietJson = dto.ChiTietJson;
             existing.CapNhatLuc = DateTime.UtcNow;
         }
         else
@@ -53,6 +54,7 @@ public class QuyenJudgeScoresController : ControllerBase
                 GiamKhaoId = dto.GiamKhaoId,
                 TenGiamKhao = dto.TenGiamKhao,
                 Diem = dto.Diem,
+                ChiTietJson = dto.ChiTietJson,
                 CapNhatLuc = DateTime.UtcNow,
             };
             _db.QuyenJudgeScores.Add(existing);
@@ -71,6 +73,7 @@ public class QuyenJudgeScoresController : ControllerBase
         GiamKhaoId = s.GiamKhaoId,
         TenGiamKhao = s.TenGiamKhao,
         Diem = s.Diem,
+        ChiTietJson = s.ChiTietJson,
         CapNhatLuc = s.CapNhatLuc,
     };
 }

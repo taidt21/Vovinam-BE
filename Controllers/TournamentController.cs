@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using VovinamApi.Data;
 using VovinamApi.DTOs;
@@ -26,7 +27,7 @@ public class TournamentController : ControllerBase
         var t = await GetOrCreateSingleton();
         return Ok(new TournamentDto { Id = t.Id, Ten = t.Ten, SoSan = t.SoSan });
     }
-
+    [Authorize(Roles = "Admin")]
     [HttpPut]
     public async Task<ActionResult<TournamentDto>> Update(TournamentUpsertDto dto)
     {

@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using VovinamApi.Data;
 
@@ -7,6 +8,7 @@ namespace VovinamApi.Controllers;
 // CHỈ chứa thao tác quản trị mang tính hủy diệt — tách hẳn khỏi controller
 // nghiệp vụ bình thường để dễ thấy ngay đây là vùng nguy hiểm.
 [ApiController]
+[Authorize(Roles = "Admin")]
 [Route("api/admin")]
 public class AdminController : ControllerBase
 {

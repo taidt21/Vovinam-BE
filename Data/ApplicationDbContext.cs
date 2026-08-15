@@ -17,6 +17,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<PerformanceOrder> PerformanceOrders => Set<PerformanceOrder>();
     public DbSet<QuyenResult> QuyenResults => Set<QuyenResult>();
     public DbSet<QuyenJudgeScore> QuyenJudgeScores => Set<QuyenJudgeScore>();
+    public DbSet<TrongTai> TrongTais => Set<TrongTai>();
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -55,5 +56,13 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
         builder.Entity<QuyenResult>().Property(r => r.Diem).HasPrecision(5, 2);
         builder.Entity<QuyenResult>().Property(r => r.DiemTru).HasPrecision(5, 2);
         builder.Entity<QuyenJudgeScore>().Property(s => s.Diem).HasPrecision(5, 2);
+
+        // 1 sân không được có 2 người cùng là Giám định số N — nhiều người
+        // ThuTuGiamDinh = null (dự bị/chưa gán) vẫn thoải mái tồn tại song
+        // song vì filter loại các dòng null ra khỏi ràng buộc unique.
+        builder.Entity<TrongTai>()
+            .HasIndex(t => new { t.CourtId, t.ThuTuGiamDinh })
+            .IsUnique()
+            .HasFilter("[ThuTuGiamDinh] IS NOT NULL");
     }
 }

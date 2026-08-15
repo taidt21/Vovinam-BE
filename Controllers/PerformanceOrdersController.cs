@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using VovinamApi.Data;
 using VovinamApi.DTOs;
@@ -23,7 +24,7 @@ public class PerformanceOrdersController : ControllerBase
         var orders = await _db.PerformanceOrders.ToListAsync();
         return Ok(orders.Select(ToDto));
     }
-
+    [Authorize(Roles = "Admin")]
     [HttpPut("by-event/{eventId}")]
     public async Task<ActionResult<List<PerformanceOrderDto>>> ReplaceForEvent(Guid eventId, List<PerformanceOrderUpsertDto> orders)
     {

@@ -8,6 +8,7 @@ public class LiveCourtStateStore
     public class CourtState
     {
         public JsonNode? MatchState { get; set; }
+        public JsonNode? QuyenState { get; set; }
         public ConcurrentDictionary<string, JsonNode> RefereeScores { get; } = new();
     }
 
@@ -28,6 +29,7 @@ public class LiveCourtStateStore
         return new
         {
             matchState = s.MatchState,
+            quyenState = s.QuyenState,
             refereeScores = s.RefereeScores.Values.ToList(),
             log = GetLog(courtId),
         };
@@ -35,6 +37,13 @@ public class LiveCourtStateStore
 
     public void SetMatchState(string courtId, JsonNode matchState) => GetOrCreate(courtId).MatchState = matchState;
     public JsonNode? GetMatchState(string courtId) => GetOrCreate(courtId).MatchState;
+
+    // Trạng thái sống của quyền — TÁCH RIÊNG khỏi MatchState (đối kháng),
+    // vì 1 khu vực có thể lần lượt dùng cho cả 2 mục đích khác nhau tuỳ
+    // lịch, không nên lẫn vào chung 1 chỗ.
+    public void SetQuyenState(string courtId, JsonNode quyenState) => GetOrCreate(courtId).QuyenState = quyenState;
+    public JsonNode? GetQuyenState(string courtId) => GetOrCreate(courtId).QuyenState;
+    public void ClearQuyenState(string courtId) => GetOrCreate(courtId).QuyenState = null;
 
     public void ClearMatchState(string courtId)
     {

@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using VovinamApi.Data;
@@ -23,7 +24,7 @@ public class EventsController : ControllerBase
         var events = await _db.Events.ToListAsync();
         return Ok(events.Select(ToDto));
     }
-
+    [Authorize(Roles = "Admin")]
     [HttpPost]
     public async Task<ActionResult<EventDto>> Create(EventUpsertDto dto)
     {
@@ -45,7 +46,7 @@ public class EventsController : ControllerBase
         await _db.SaveChangesAsync();
         return CreatedAtAction(nameof(GetAll), ToDto(ev));
     }
-
+    [Authorize(Roles = "Admin")]
     [HttpPut("{id}")]
     public async Task<IActionResult> Update(Guid id, EventUpsertDto dto)
     {
@@ -66,7 +67,7 @@ public class EventsController : ControllerBase
         await _db.SaveChangesAsync();
         return NoContent();
     }
-
+    [Authorize(Roles = "Admin")]
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(Guid id)
     {

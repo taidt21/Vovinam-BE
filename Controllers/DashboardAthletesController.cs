@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using VovinamApi.Data;
 using VovinamApi.DTOs;
@@ -23,7 +24,7 @@ public class DashboardAthletesController : ControllerBase
         var athletes = await _db.Athletes.Include(a => a.Registrations).ToListAsync();
         return Ok(athletes.Select(ToDto));
     }
-
+    [Authorize(Roles = "Admin")]
     [HttpPost]
     public async Task<ActionResult<DashboardAthleteDto>> Create(DashboardAthleteUpsertDto dto)
     {
@@ -57,7 +58,7 @@ public class DashboardAthletesController : ControllerBase
             EventIds = dto.EventIds,
         });
     }
-
+    [Authorize(Roles = "Admin")]
     [HttpPut("{id}")]
     public async Task<IActionResult> Update(Guid id, DashboardAthleteUpsertDto dto)
     {
@@ -80,7 +81,7 @@ public class DashboardAthletesController : ControllerBase
         await _db.SaveChangesAsync();
         return NoContent();
     }
-
+    [Authorize(Roles = "Admin")]
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(Guid id)
     {
