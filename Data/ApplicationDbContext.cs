@@ -18,6 +18,8 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<QuyenResult> QuyenResults => Set<QuyenResult>();
     public DbSet<QuyenJudgeScore> QuyenJudgeScores => Set<QuyenJudgeScore>();
     public DbSet<TrongTai> TrongTais => Set<TrongTai>();
+    public DbSet<QuyenLuotHoanThanh> QuyenLuotHoanThanhs => Set<QuyenLuotHoanThanh>();
+    public DbSet<MatchLiveSnapshot> MatchLiveSnapshots => Set<MatchLiveSnapshot>();
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);

@@ -1,6 +1,9 @@
 ﻿using Microsoft.AspNetCore.SignalR;
+using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using VovinamApi.Data;
+using VovinamApi.Models;
 using VovinamApi.Services;
 
 namespace VovinamApi.Hubs;
@@ -8,27 +11,100 @@ namespace VovinamApi.Hubs;
 public class MatchHub : Hub
 {
     private readonly LiveCourtStateStore _store;
+    private readonly ApplicationDbContext _db;
 
-    public MatchHub(LiveCourtStateStore store)
+    public MatchHub(LiveCourtStateStore store, ApplicationDbContext db)
     {
         _store = store;
+        _db = db;
+    }
+
+    // Lưu lại state sống của ĐÚNG trận đang có (dựa vào field matchId ngay
+    // trong chính JSON đó) — gọi sau MỌI lần SetMatchState, để restart
+    // backend có gì đọc lại tự khôi phục, không cần Bàn thư ký gõ tay.
+    private async Task LuuSnapshotAsync(JsonNode matchState)
+    {
+        var matchIdNode = matchState["matchId"];
+        if (matchIdNode == null) return;
+        if (!Guid.TryParse(matchIdNode.GetValue<string>(), out var matchId)) return;
+
+        var existing = await _db.MatchLiveSnapshots.FindAsync(matchId);
+        var json = matchState.ToJsonString();
+        if (existing != null)
+        {
+            existing.StateJson = json;
+            existing.CapNhatLuc = DateTimeOffset.UtcNow;
+        }
+        else
+        {
+            _db.MatchLiveSnapshots.Add(new MatchLiveSnapshot
+            {
+                Id = matchId,
+                StateJson = json,
+                CapNhatLuc = DateTimeOffset.UtcNow,
+            });
+        }
+        await _db.SaveChangesAsync();
     }
 
     public async Task JoinCourt(string courtId)
     {
         await Groups.AddToGroupAsync(Context.ConnectionId, GroupName(courtId));
+
+        // Chưa có gì sống trong RAM cho sân này — kiểm tra xem có đúng 1
+        // trận đang "dang_thi" tại sân này trong DB không, và nếu có bản
+        // lưu snapshot của đúng trận đó thì tự khôi phục thẳng vào RAM
+        // TRƯỚC khi gửi snapshot cho client — âm thầm, không ai phải làm
+        // gì cả.
+        //
+        // CHỈ khôi phục nếu ActiveMode KHÔNG phải "quyen" — nếu BTK đã
+        // chủ động chuyển sang quyền (không phải do crash), "dang_thi"
+        // trong DB có thể chỉ là dữ liệu cũ chưa kịp cập nhật (đổi tab
+        // không tự đổi TrangThai của Match), khôi phục lúc này sẽ vô tình
+        // đè mất đúng lượt quyền đang thật sự sống (do 2 loại tự xoá lẫn
+        // nhau).
+        if (_store.GetMatchState(courtId) == null && _store.GetActiveMode(courtId) != "quyen")
+        {
+            var dangThi = await _db.Matches.FirstOrDefaultAsync(m =>
+                m.CourtId == courtId && m.TrangThai == "dang_thi");
+            if (dangThi != null)
+            {
+                var snapshot = await _db.MatchLiveSnapshots.FindAsync(dangThi.Id);
+                if (snapshot != null)
+                {
+                    var node = JsonNode.Parse(snapshot.StateJson);
+                    if (node != null) _store.SetMatchState(courtId, node);
+                }
+            }
+        }
+
         await Clients.Caller.SendAsync("CourtSnapshot", courtId, _store.GetSnapshot(courtId));
     }
 
     public async Task PublishMatchState(string courtId, JsonElement matchState)
     {
         var node = JsonNode.Parse(matchState.GetRawText());
-        if (node != null) _store.SetMatchState(courtId, node);
+        if (node != null)
+        {
+            _store.SetMatchState(courtId, node);
+            await LuuSnapshotAsync(node);
+        }
         await Clients.OthersInGroup(GroupName(courtId)).SendAsync("MatchStateUpdated", courtId, matchState);
     }
 
     public async Task ClearMatchState(string courtId)
     {
+        var matchState = _store.GetMatchState(courtId);
+        var matchIdNode = matchState?["matchId"];
+        if (matchIdNode != null && Guid.TryParse(matchIdNode.GetValue<string>(), out var matchId))
+        {
+            var snapshot = await _db.MatchLiveSnapshots.FindAsync(matchId);
+            if (snapshot != null)
+            {
+                _db.MatchLiveSnapshots.Remove(snapshot);
+                await _db.SaveChangesAsync();
+            }
+        }
         _store.ClearMatchState(courtId);
         await Clients.OthersInGroup(GroupName(courtId)).SendAsync("MatchStateCleared", courtId);
     }
@@ -93,6 +169,7 @@ public class MatchHub : Hub
         matchState[scoreKey] = current + diemThat;
         matchState["capNhatLuc"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         _store.SetMatchState(courtId, matchState);
+        await LuuSnapshotAsync(matchState);
 
         var scoreLog = _store.AddLog(courtId, $"✓ GHI ĐIỂM: {mauLabel} +{diemThat} ({soLuong}/5 trọng tài đồng thuận)");
 

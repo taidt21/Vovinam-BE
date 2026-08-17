@@ -21,24 +21,30 @@ public class AdminAuthController : ControllerBase
     [HttpPost("login")]
     public ActionResult<AdminAuthResponseDto> Login(AdminLoginDto dto)
     {
-        var validUsername = _config["AdminAuth:Username"];
-        var validPassword = _config["AdminAuth:Password"];
+        var adminUsername = _config["AdminAuth:Username"];
+        var adminPassword = _config["AdminAuth:Password"];
+        var btkUsername = _config["BanThuKyAuth:Username"];
+        var btkPassword = _config["BanThuKyAuth:Password"];
 
-        if (string.IsNullOrEmpty(validUsername) || string.IsNullOrEmpty(validPassword))
+        if (string.IsNullOrEmpty(adminUsername) || string.IsNullOrEmpty(adminPassword))
             return StatusCode(500, "Chưa cấu hình tài khoản admin trong appsettings.json");
 
-        if (dto.Username != validUsername || dto.Password != validPassword)
-            return Unauthorized("Sai tên đăng nhập hoặc mật khẩu");
+        if (dto.Username == adminUsername && dto.Password == adminPassword)
+            return Ok(new AdminAuthResponseDto { Token = GenerateJwt("admin", "Admin"), Role = "Admin" });
 
-        return Ok(new AdminAuthResponseDto { Token = GenerateAdminJwt() });
+        if (!string.IsNullOrEmpty(btkUsername) && !string.IsNullOrEmpty(btkPassword)
+            && dto.Username == btkUsername && dto.Password == btkPassword)
+            return Ok(new AdminAuthResponseDto { Token = GenerateJwt("banthuky", "BanThuKy"), Role = "BanThuKy" });
+
+        return Unauthorized("Sai tên đăng nhập hoặc mật khẩu");
     }
 
-    private string GenerateAdminJwt()
+    private string GenerateJwt(string ten, string vaiTro)
     {
         var claims = new[]
         {
-            new Claim(ClaimTypes.Name, "admin"),
-            new Claim(ClaimTypes.Role, "Admin"),
+            new Claim(ClaimTypes.Name, ten),
+            new Claim(ClaimTypes.Role, vaiTro),
         };
 
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["Jwt:Key"]!));

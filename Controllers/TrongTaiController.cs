@@ -27,7 +27,7 @@ public class TrongTaiController : ControllerBase
         return Ok(list.Select(ToDto));
     }
 
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,BanThuKy")]
     [HttpPost]
     public async Task<ActionResult<TrongTaiDto>> Create(TrongTaiUpsertDto dto)
     {
@@ -50,7 +50,7 @@ public class TrongTaiController : ControllerBase
         return CreatedAtAction(nameof(GetAll), ToDto(trongTai));
     }
 
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,BanThuKy")]
     [HttpPut("{id}")]
     public async Task<IActionResult> Update(Guid id, TrongTaiUpsertDto dto)
     {
@@ -71,7 +71,7 @@ public class TrongTaiController : ControllerBase
         return NoContent();
     }
 
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,BanThuKy")]
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(Guid id)
     {

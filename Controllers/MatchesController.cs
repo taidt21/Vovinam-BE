@@ -9,7 +9,6 @@ namespace VovinamApi.Controllers;
 
 [ApiController]
 [Route("api/matches")]
-[Authorize(Roles = "Admin")]
 public class MatchesController : ControllerBase
 {
     private readonly ApplicationDbContext _db;
@@ -18,14 +17,16 @@ public class MatchesController : ControllerBase
     {
         _db = db;
     }
-    [Authorize(Roles = "Admin")]
+    // Bàn thư ký dùng thẳng 2 endpoint này hàng ngày (đọc danh sách trận,
+    // sửa từng trận khi vận hành) — cho phép cả 2 vai trò.
+    [Authorize(Roles = "Admin,BanThuKy")]
     [HttpGet]
     public async Task<ActionResult<List<MatchDto>>> GetAll()
     {
         var matches = await _db.Matches.ToListAsync();
         return Ok(matches.Select(ToDto));
     }
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,BanThuKy")]
     [HttpPut("{id}")]
     public async Task<IActionResult> UpdateOne(Guid id, MatchUpdateDto dto)
     {
@@ -42,6 +43,8 @@ public class MatchesController : ControllerBase
         await _db.SaveChangesAsync();
         return NoContent();
     }
+    // Thay TOÀN BỘ trận của 1 nội dung = bốc thăm — chỉ Admin (khớp đúng
+    // nút "Bốc thăm" chỉ hiện cho Admin ở giao diện).
     [Authorize(Roles = "Admin")]
     [HttpPut("by-event/{eventId}")]
     public async Task<ActionResult<List<MatchDto>>> ReplaceForEvent(Guid eventId, List<MatchUpsertDto> matches)

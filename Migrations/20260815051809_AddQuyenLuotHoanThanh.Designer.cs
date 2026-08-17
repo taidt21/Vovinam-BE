@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using VovinamApi.Data;
 
@@ -11,9 +12,11 @@ using VovinamApi.Data;
 namespace vovinam_backend.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260815051809_AddQuyenLuotHoanThanh")]
+    partial class AddQuyenLuotHoanThanh
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -340,24 +343,6 @@ namespace vovinam_backend.Migrations
                     b.ToTable("Matches");
                 });
 
-            modelBuilder.Entity("VovinamApi.Models.MatchLiveSnapshot", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTimeOffset>("CapNhatLuc")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<string>("StateJson")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("MatchLiveSnapshots");
-                });
-
             modelBuilder.Entity("VovinamApi.Models.PerformanceOrder", b =>
                 {
                     b.Property<Guid>("Id")
@@ -434,10 +419,6 @@ namespace vovinam_backend.Migrations
 
                     b.Property<Guid>("EventId")
                         .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("LyDo")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
 
                     b.Property<Guid?>("TeamId")
                         .HasColumnType("uniqueidentifier");

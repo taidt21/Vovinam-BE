@@ -64,6 +64,20 @@ public class QuyenJudgeScoresController : ControllerBase
         return Ok(ToDto(existing));
     }
 
+    // Cho thi lại 1 lượt = xoá sạch điểm CŨ của tất cả giám định cho ĐÚNG
+    // lượt đó — không xoá thì giám định chấm lại sẽ trộn lẫn với điểm của
+    // lần thi hỏng trước, ra kết quả sai.
+    [HttpDelete]
+    public async Task<IActionResult> DeleteForPerformance(
+        [FromQuery] Guid eventId, [FromQuery] Guid? athleteId, [FromQuery] Guid? teamId)
+    {
+        var scores = await _db.QuyenJudgeScores.Where(s =>
+            s.EventId == eventId && s.AthleteId == athleteId && s.TeamId == teamId).ToListAsync();
+        _db.QuyenJudgeScores.RemoveRange(scores);
+        await _db.SaveChangesAsync();
+        return NoContent();
+    }
+
     private static QuyenJudgeScoreDto ToDto(QuyenJudgeScore s) => new()
     {
         Id = s.Id,
