@@ -20,6 +20,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<TrongTai> TrongTais => Set<TrongTai>();
     public DbSet<QuyenLuotHoanThanh> QuyenLuotHoanThanhs => Set<QuyenLuotHoanThanh>();
     public DbSet<MatchLiveSnapshot> MatchLiveSnapshots => Set<MatchLiveSnapshot>();
+    public DbSet<BanThuKyAccount> BanThuKyAccounts => Set<BanThuKyAccount>();
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -29,6 +30,10 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             .WithMany()
             .HasForeignKey(u => u.TeamId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        builder.Entity<BanThuKyAccount>()
+            .HasIndex(a => a.Username)
+            .IsUnique();
 
         builder.Entity<Athlete>()
             .HasOne(a => a.Team)

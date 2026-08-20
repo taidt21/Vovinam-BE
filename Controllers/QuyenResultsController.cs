@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using VovinamApi.Data;
 using VovinamApi.DTOs;
@@ -24,6 +25,7 @@ public class QuyenResultsController : ControllerBase
         return Ok(results.Select(ToDto));
     }
 
+    [Authorize(Roles = "Admin,BanThuKy")]
     [HttpPut]
     public async Task<ActionResult<QuyenResultDto>> Upsert(QuyenResultUpsertDto dto)
     {

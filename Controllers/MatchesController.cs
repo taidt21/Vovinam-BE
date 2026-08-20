@@ -1,8 +1,10 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using VovinamApi.Data;
 using VovinamApi.DTOs;
+using VovinamApi.Hubs;
 using VovinamApi.Models;
 
 namespace VovinamApi.Controllers;
@@ -12,10 +14,12 @@ namespace VovinamApi.Controllers;
 public class MatchesController : ControllerBase
 {
     private readonly ApplicationDbContext _db;
+    private readonly IHubContext<MatchHub> _hub;
 
-    public MatchesController(ApplicationDbContext db)
+    public MatchesController(ApplicationDbContext db, IHubContext<MatchHub> hub)
     {
         _db = db;
+        _hub = hub;
     }
     // Bàn thư ký dùng thẳng 2 endpoint này hàng ngày (đọc danh sách trận,
     // sửa từng trận khi vận hành) — cho phép cả 2 vai trò.
@@ -41,6 +45,11 @@ public class MatchesController : ControllerBase
         match.CourtId = dto.CourtId;
 
         await _db.SaveChangesAsync();
+        // Báo ngay cho mọi trang BTK đang mở, bất kể đang ở sân nào — thay
+        // vì để họ tự phát hiện qua vòng thăm dò 3 giây. Không kèm dữ liệu
+        // trong tín hiệu này, ai nhận được tự gọi lại GetAll — đơn giản
+        // hơn, không phải lo đồng bộ hình dạng dữ liệu ở 2 nơi.
+        await _hub.Clients.All.SendAsync("MatchesChanged");
         return NoContent();
     }
     // Thay TOÀN BỘ trận của 1 nội dung = bốc thăm — chỉ Admin (khớp đúng
@@ -69,6 +78,7 @@ public class MatchesController : ControllerBase
         _db.Matches.AddRange(created);
 
         await _db.SaveChangesAsync();
+        await _hub.Clients.All.SendAsync("MatchesChanged");
         return Ok(created.Select(ToDto));
     }
 

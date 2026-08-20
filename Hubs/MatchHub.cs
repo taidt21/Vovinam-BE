@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using VovinamApi.Data;
@@ -12,11 +13,13 @@ public class MatchHub : Hub
 {
     private readonly LiveCourtStateStore _store;
     private readonly ApplicationDbContext _db;
+    private readonly ILogger<MatchHub> _logger;
 
-    public MatchHub(LiveCourtStateStore store, ApplicationDbContext db)
+    public MatchHub(LiveCourtStateStore store, ApplicationDbContext db, ILogger<MatchHub> logger)
     {
         _store = store;
         _db = db;
+        _logger = logger;
     }
 
     // Lưu lại state sống của ĐÚNG trận đang có (dựa vào field matchId ngay
@@ -84,29 +87,54 @@ public class MatchHub : Hub
     public async Task PublishMatchState(string courtId, JsonElement matchState)
     {
         var node = JsonNode.Parse(matchState.GetRawText());
-        if (node != null)
+        if (node == null) return;
+
+        await _store.WithCourtLockAsync(courtId, async () =>
         {
             _store.SetMatchState(courtId, node);
-            await LuuSnapshotAsync(node);
-        }
-        await Clients.OthersInGroup(GroupName(courtId)).SendAsync("MatchStateUpdated", courtId, matchState);
+            await Clients.OthersInGroup(GroupName(courtId)).SendAsync("MatchStateUpdated", courtId, matchState);
+
+            try
+            {
+                await LuuSnapshotAsync(node);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Lưu snapshot thất bại cho sân {CourtId} (PublishMatchState)", courtId);
+            }
+        });
     }
 
     public async Task ClearMatchState(string courtId)
     {
-        var matchState = _store.GetMatchState(courtId);
-        var matchIdNode = matchState?["matchId"];
-        if (matchIdNode != null && Guid.TryParse(matchIdNode.GetValue<string>(), out var matchId))
+        await _store.WithCourtLockAsync(courtId, async () =>
         {
-            var snapshot = await _db.MatchLiveSnapshots.FindAsync(matchId);
-            if (snapshot != null)
+            var matchState = _store.GetMatchState(courtId);
+            var matchIdNode = matchState?["matchId"];
+            Guid? matchIdToDelete = null;
+            if (matchIdNode != null && Guid.TryParse(matchIdNode.GetValue<string>(), out var parsedId))
+                matchIdToDelete = parsedId;
+
+            _store.ClearMatchState(courtId);
+            await Clients.OthersInGroup(GroupName(courtId)).SendAsync("MatchStateCleared", courtId);
+
+            if (matchIdToDelete != null)
             {
-                _db.MatchLiveSnapshots.Remove(snapshot);
-                await _db.SaveChangesAsync();
+                try
+                {
+                    var snapshot = await _db.MatchLiveSnapshots.FindAsync(matchIdToDelete);
+                    if (snapshot != null)
+                    {
+                        _db.MatchLiveSnapshots.Remove(snapshot);
+                        await _db.SaveChangesAsync();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Xoá snapshot thất bại cho trận {MatchId} tại sân {CourtId} (ClearMatchState)", matchIdToDelete, courtId);
+                }
             }
-        }
-        _store.ClearMatchState(courtId);
-        await Clients.OthersInGroup(GroupName(courtId)).SendAsync("MatchStateCleared", courtId);
+        });
     }
     public async Task PublishQuyenState(string courtId, JsonElement quyenState)
     {
@@ -164,18 +192,29 @@ public class MatchHub : Hub
 
         var (diemThat, soLuong) = result.Value;
 
-        var scoreKey = mau == "do" ? "diemChinhThucDo" : "diemChinhThucXanh";
-        var current = matchState![scoreKey]?.GetValue<int>() ?? 0;
-        matchState[scoreKey] = current + diemThat;
-        matchState["capNhatLuc"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        _store.SetMatchState(courtId, matchState);
-        await LuuSnapshotAsync(matchState);
+        await _store.WithCourtLockAsync(courtId, async () =>
+        {
+            var scoreKey = mau == "do" ? "diemChinhThucDo" : "diemChinhThucXanh";
+            var current = matchState![scoreKey]?.GetValue<int>() ?? 0;
+            matchState[scoreKey] = current + diemThat;
+            matchState["capNhatLuc"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            _store.SetMatchState(courtId, matchState);
 
-        var scoreLog = _store.AddLog(courtId, $"✓ GHI ĐIỂM: {mauLabel} +{diemThat} ({soLuong}/5 trọng tài đồng thuận)");
+            var scoreLog = _store.AddLog(courtId, $"✓ GHI ĐIỂM: {mauLabel} +{diemThat} ({soLuong}/5 trọng tài đồng thuận)");
 
-        await Clients.Group(GroupName(courtId)).SendAsync("MatchStateUpdated", courtId, matchState);
-        await Clients.Group(GroupName(courtId)).SendAsync("ConsensusScored", courtId, mau, diemThat, soLuong, luc);
-        await Clients.Group(GroupName(courtId)).SendAsync("LogEntryAdded", courtId, scoreLog);
+            await Clients.Group(GroupName(courtId)).SendAsync("MatchStateUpdated", courtId, matchState);
+            await Clients.Group(GroupName(courtId)).SendAsync("ConsensusScored", courtId, mau, diemThat, soLuong, luc);
+            await Clients.Group(GroupName(courtId)).SendAsync("LogEntryAdded", courtId, scoreLog);
+
+            try
+            {
+                await LuuSnapshotAsync(matchState);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Lưu snapshot thất bại cho sân {CourtId} sau khi ghi điểm (PressLight)", courtId);
+            }
+        });
     }
 
     public async Task SubmitRefereeScore(string courtId, string giamDinhId, JsonElement score)

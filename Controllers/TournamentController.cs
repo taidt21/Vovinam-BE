@@ -1,8 +1,10 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using VovinamApi.Data;
 using VovinamApi.DTOs;
+using VovinamApi.Hubs;
 using VovinamApi.Models;
 
 namespace VovinamApi.Controllers;
@@ -15,17 +17,19 @@ namespace VovinamApi.Controllers;
 public class TournamentController : ControllerBase
 {
     private readonly ApplicationDbContext _db;
+    private readonly IHubContext<MatchHub> _hub;
 
-    public TournamentController(ApplicationDbContext db)
+    public TournamentController(ApplicationDbContext db, IHubContext<MatchHub> hub)
     {
         _db = db;
+        _hub = hub;
     }
 
     [HttpGet]
     public async Task<ActionResult<TournamentDto>> Get()
     {
         var t = await GetOrCreateSingleton();
-        return Ok(new TournamentDto { Id = t.Id, Ten = t.Ten, SoSan = t.SoSan });
+        return Ok(new TournamentDto { Id = t.Id, Ten = t.Ten, SoSan = t.SoSan, ChoPhepHiepPhu = t.ChoPhepHiepPhu });
     }
     [Authorize(Roles = "Admin")]
     [HttpPut]
@@ -34,8 +38,13 @@ public class TournamentController : ControllerBase
         var t = await GetOrCreateSingleton();
         t.Ten = dto.Ten;
         t.SoSan = dto.SoSan;
+        t.ChoPhepHiepPhu = dto.ChoPhepHiepPhu;
         await _db.SaveChangesAsync();
-        return Ok(new TournamentDto { Id = t.Id, Ten = t.Ten, SoSan = t.SoSan });
+        // Trang Bàn thư ký chỉ tải Tournament đúng 1 lần lúc mở — nếu tab
+        // đó đã mở sẵn từ trước lúc BTC đổi cài đặt (VD tích "cho phép
+        // hiệp phụ"), báo ngay để nó tự tải lại, khỏi phải nhớ F5 tay.
+        await _hub.Clients.All.SendAsync("TournamentChanged");
+        return Ok(new TournamentDto { Id = t.Id, Ten = t.Ten, SoSan = t.SoSan, ChoPhepHiepPhu = t.ChoPhepHiepPhu });
     }
 
     private async Task<Tournament> GetOrCreateSingleton()

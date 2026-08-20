@@ -8,6 +8,11 @@ using VovinamApi.Hubs;
 using VovinamApi.Models;
 using VovinamApi.Services;
 
+// Console mặc định trên Windows dùng codepage cũ, hiển thị tiếng Việt có
+// dấu thành dấu "?" (không phải lỗi logic, chỉ là hiển thị) — ép UTF-8
+// để các thông báo lỗi tiếng Việt (như check Jwt:Key bên dưới) đọc được.
+Console.OutputEncoding = System.Text.Encoding.UTF8;
+
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
@@ -28,6 +33,15 @@ builder.Services
     })
     .AddEntityFrameworkStores<ApplicationDbContext>();
 
+var jwtKey = builder.Configuration["Jwt:Key"];
+if (string.IsNullOrWhiteSpace(jwtKey))
+{
+    throw new InvalidOperationException(
+        "Thiếu cấu hình Jwt:Key (đang rỗng). Chạy: dotnet user-secrets set \"Jwt:Key\" \"<key>\" " +
+        "trong thư mục vovinam-backend (hoặc set environment variable Jwt__Key nếu chạy bản publish), " +
+        "dùng ĐÚNG 1 giá trị y hệt cho mọi nơi chạy, rồi chạy lại app.");
+}
+
 builder.Services
     .AddAuthentication(options =>
     {
@@ -44,8 +58,7 @@ builder.Services
             ValidateIssuerSigningKey = true,
             ValidIssuer = builder.Configuration["Jwt:Issuer"],
             ValidAudience = builder.Configuration["Jwt:Audience"],
-            IssuerSigningKey = new SymmetricSecurityKey(
-                Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]!)),
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey!)),
         };
     });
 

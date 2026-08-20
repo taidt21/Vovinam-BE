@@ -258,6 +258,35 @@ namespace vovinam_backend.Migrations
                     b.ToTable("Athletes");
                 });
 
+            modelBuilder.Entity("VovinamApi.Models.BanThuKyAccount", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("CourtId")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("PasswordHash")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("TenHienThi")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Username")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Username")
+                        .IsUnique();
+
+                    b.ToTable("BanThuKyAccounts");
+                });
+
             modelBuilder.Entity("VovinamApi.Models.CompetitionEvent", b =>
                 {
                     b.Property<Guid>("Id")
@@ -520,6 +549,9 @@ namespace vovinam_backend.Migrations
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("ChoPhepHiepPhu")
+                        .HasColumnType("bit");
 
                     b.Property<int>("SoSan")
                         .HasColumnType("int");

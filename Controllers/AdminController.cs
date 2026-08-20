@@ -20,10 +20,25 @@ public class AdminController : ControllerBase
     }
 
     // Xóa sạch dữ liệu giải đấu — KHÔNG đụng tới AspNetUsers (tài khoản
-    // trưởng đoàn), khác phạm vi với trang Thiết lập giải này.
+    // trưởng đoàn) và BanThuKyAccounts (tài khoản Bàn thư ký), khác phạm
+    // vi với trang Thiết lập giải này.
+    //
+    // Bọc transaction: nếu 1 bảng lỗi giữa chừng thì rollback hết, không
+    // để lại dữ liệu xoá dở dang. Các bảng Quyền/TrongTai/Snapshot không
+    // có FK constraint thật tới Event/Athlete/Team/Match (EventId/AthleteId
+    // ở đó chỉ là Guid trơn, không khai báo navigation property) nên thứ
+    // tự xoá dưới đây không bắt buộc phải đúng theo FK — vẫn xếp "chi
+    // tiết trước, gốc sau" cho rõ ràng.
     [HttpDelete("reset-all")]
     public async Task<IActionResult> ResetAll()
     {
+        await using var tx = await _db.Database.BeginTransactionAsync();
+
+        await _db.QuyenJudgeScores.ExecuteDeleteAsync();
+        await _db.QuyenResults.ExecuteDeleteAsync();
+        await _db.QuyenLuotHoanThanhs.ExecuteDeleteAsync();
+        await _db.MatchLiveSnapshots.ExecuteDeleteAsync();
+        await _db.TrongTais.ExecuteDeleteAsync();
         await _db.PerformanceOrders.ExecuteDeleteAsync();
         await _db.Matches.ExecuteDeleteAsync();
         await _db.Registrations.ExecuteDeleteAsync();
@@ -31,6 +46,8 @@ public class AdminController : ControllerBase
         await _db.Events.ExecuteDeleteAsync();
         await _db.Teams.ExecuteDeleteAsync();
         await _db.Tournaments.ExecuteDeleteAsync();
+
+        await tx.CommitAsync();
 
         return NoContent();
     }

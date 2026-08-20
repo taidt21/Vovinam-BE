@@ -1,4 +1,6 @@
-﻿namespace VovinamApi.DTOs;
+﻿using System.ComponentModel.DataAnnotations;
+
+namespace VovinamApi.DTOs;
 
 public class QuyenResultDto
 {
@@ -16,6 +18,6 @@ public class QuyenResultUpsertDto
     public Guid EventId { get; set; }
     public Guid? AthleteId { get; set; }
     public Guid? TeamId { get; set; }
-    public decimal Diem { get; set; }
-    public decimal DiemTru { get; set; }
+    [Range(typeof(decimal), "0", "300")] public decimal Diem { get; set; }
+    [Range(typeof(decimal), "0", "300")] public decimal DiemTru { get; set; }
 }

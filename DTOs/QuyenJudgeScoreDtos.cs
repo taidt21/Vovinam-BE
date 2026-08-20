@@ -1,4 +1,6 @@
-﻿namespace VovinamApi.DTOs;
+﻿using System.ComponentModel.DataAnnotations;
+
+namespace VovinamApi.DTOs;
 
 public class QuyenJudgeScoreDto
 {
@@ -20,6 +22,6 @@ public class QuyenJudgeScoreUpsertDto
     public Guid? TeamId { get; set; }
     public string GiamKhaoId { get; set; } = string.Empty;
     public string TenGiamKhao { get; set; } = string.Empty;
-    public decimal Diem { get; set; }
+    [Range(typeof(decimal), "0", "100")] public decimal Diem { get; set; }
     public string? ChiTietJson { get; set; }
 }

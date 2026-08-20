@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using VovinamApi.Data;
 using VovinamApi.DTOs;
@@ -27,6 +28,11 @@ public class QuyenJudgeScoresController : ControllerBase
     // 1 trọng tài chấm lại (bấm nhầm, sửa điểm) -> ghi đè đúng bản cũ của
     // chính họ, không tạo thêm dòng mới -> không làm sai đếm "đã có mấy
     // người chấm" (luôn tính theo GiamKhaoId duy nhất, không theo số dòng).
+    //
+    // Trang trọng tài (thiết bị riêng, KHÔNG đăng nhập theo đúng thiết
+    // kế — xem TrongTai/QuyenView.tsx) gọi thẳng PUT này để gửi điểm, nên
+    // KHÔNG được để [Authorize] ở đây — có JWT đâu mà xác thực. Bảo vệ
+    // endpoint này cần cơ chế khác (mã sân) chứ không phải role-based auth.
     [HttpPut]
     public async Task<ActionResult<QuyenJudgeScoreDto>> Upsert(QuyenJudgeScoreUpsertDto dto)
     {
@@ -67,6 +73,7 @@ public class QuyenJudgeScoresController : ControllerBase
     // Cho thi lại 1 lượt = xoá sạch điểm CŨ của tất cả giám định cho ĐÚNG
     // lượt đó — không xoá thì giám định chấm lại sẽ trộn lẫn với điểm của
     // lần thi hỏng trước, ra kết quả sai.
+    [Authorize(Roles = "Admin,BanThuKy")]
     [HttpDelete]
     public async Task<IActionResult> DeleteForPerformance(
         [FromQuery] Guid eventId, [FromQuery] Guid? athleteId, [FromQuery] Guid? teamId)

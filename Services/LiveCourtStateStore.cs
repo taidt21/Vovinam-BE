@@ -1,5 +1,7 @@
 ﻿using System.Collections.Concurrent;
 using System.Text.Json.Nodes;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace VovinamApi.Services;
 
@@ -23,6 +25,28 @@ public class LiveCourtStateStore
     private readonly ConcurrentDictionary<string, CourtState> _courts = new();
     private readonly ConcurrentDictionary<string, List<LogEntry>> _logs = new();
     private CourtState GetOrCreate(string courtId) => _courts.GetOrAdd(courtId, _ => new CourtState());
+
+    // Khoá theo từng sân — dùng khi 1 thao tác cần đọc-sửa-ghi MatchState
+    // (hoặc phát broadcast dựa trên state đó) mà không được để thao tác
+    // khác trên ĐÚNG sân này chen vào giữa chừng. Ví dụ: 2 màu cùng đạt
+    // đồng thuận gần như đồng thời trong PressLight — nếu không khoá, 2
+    // task có thể cùng sửa chung 1 JsonNode cùng lúc, dễ lỗi/ném exception.
+    // Sân khác nhau dùng khoá khác nhau, không ảnh hưởng lẫn nhau.
+    private readonly ConcurrentDictionary<string, SemaphoreSlim> _courtLocks = new();
+
+    public async Task WithCourtLockAsync(string courtId, Func<Task> action)
+    {
+        var sem = _courtLocks.GetOrAdd(courtId, _ => new SemaphoreSlim(1, 1));
+        await sem.WaitAsync();
+        try
+        {
+            await action();
+        }
+        finally
+        {
+            sem.Release();
+        }
+    }
 
     public object GetSnapshot(string courtId)
     {
