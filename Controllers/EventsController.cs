@@ -74,6 +74,12 @@ public class EventsController : ControllerBase
         var ev = await _db.Events.FindAsync(id);
         if (ev is null) return NotFound();
 
+        var coDiem = await _db.QuyenJudgeScores.AnyAsync(s => s.EventId == id)
+            || await _db.QuyenLuotHoanThanhs.AnyAsync(l => l.EventId == id)
+            || await _db.QuyenResults.AnyAsync(r => r.EventId == id);
+        if (coDiem)
+            return Conflict($"Không thể xóa \"{ev.Ten}\" — đã có điểm/kết quả quyền liên quan tới nội dung này.");
+
         _db.Events.Remove(ev);
         await _db.SaveChangesAsync();
         return NoContent();

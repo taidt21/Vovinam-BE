@@ -67,6 +67,13 @@ public class DashboardTeamsController : ControllerBase
         if (team.Athletes.Count > 0)
             return Conflict($"Không thể xóa \"{team.Ten}\" — còn {team.Athletes.Count} VĐV thuộc đoàn này. Xóa hoặc chuyển đoàn cho các VĐV đó trước.");
 
+        var coDiem = await _db.QuyenJudgeScores.AnyAsync(s => s.TeamId == id)
+            || await _db.QuyenLuotHoanThanhs.AnyAsync(l => l.TeamId == id)
+            || await _db.QuyenResults.AnyAsync(r => r.TeamId == id)
+            || await _db.PerformanceOrders.AnyAsync(o => o.TeamId == id);
+        if (coDiem)
+            return Conflict($"Không thể xóa \"{team.Ten}\" — đã có điểm/kết quả/thứ tự thi quyền đồng đội liên quan tới đoàn này.");
+
         _db.Teams.Remove(team);
         await _db.SaveChangesAsync();
         return NoContent();

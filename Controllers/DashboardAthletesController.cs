@@ -88,6 +88,12 @@ public class DashboardAthletesController : ControllerBase
         var athlete = await _db.Athletes.FindAsync(id);
         if (athlete is null) return NotFound();
 
+        var coDiem = await _db.QuyenJudgeScores.AnyAsync(s => s.AthleteId == id)
+            || await _db.QuyenLuotHoanThanhs.AnyAsync(l => l.AthleteId == id)
+            || await _db.QuyenResults.AnyAsync(r => r.AthleteId == id);
+        if (coDiem)
+            return Conflict($"Không thể xóa \"{athlete.HoTen}\" — đã có điểm/kết quả quyền liên quan tới VĐV này.");
+
         _db.Athletes.Remove(athlete);
         await _db.SaveChangesAsync();
         return NoContent();

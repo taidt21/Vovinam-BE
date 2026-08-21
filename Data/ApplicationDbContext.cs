@@ -1,10 +1,9 @@
-using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using VovinamApi.Models;
 
 namespace VovinamApi.Data;
 
-public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
+public class ApplicationDbContext : DbContext
 {
     public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
         : base(options) { }
@@ -24,12 +23,6 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
-
-        builder.Entity<ApplicationUser>()
-            .HasOne(u => u.Team)
-            .WithMany()
-            .HasForeignKey(u => u.TeamId)
-            .OnDelete(DeleteBehavior.Restrict);
 
         builder.Entity<BanThuKyAccount>()
             .HasIndex(a => a.Username)
@@ -71,5 +64,34 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             .HasIndex(t => new { t.CourtId, t.ThuTuGiamDinh })
             .IsUnique()
             .HasFilter("[ThuTuGiamDinh] IS NOT NULL");
+
+        // QuyenJudgeScore/QuyenLuotHoanThanh/QuyenResult trước đây chỉ có
+        // field Guid thường, không có khoá ngoại thật — DB không chặn được
+        // EventId/AthleteId/TeamId sai hoặc trỏ vào bản ghi đã xoá. Dùng
+        // Restrict (không phải Cascade): đây là dữ liệu điểm/kết quả thi
+        // đấu THẬT, có giá trị lưu trữ độc lập — xoá nhầm 1 VĐV/nội dung
+        // đã có điểm không nên ÂM THẦM xoá luôn điểm số theo, phải chặn
+        // lại và báo rõ (đã thêm kiểm tra tương ứng ở EventsController/
+        // DashboardAthletesController/DashboardTeamsController).
+        foreach (var t in new[] { typeof(QuyenJudgeScore), typeof(QuyenLuotHoanThanh), typeof(QuyenResult) })
+        {
+            builder.Entity(t).HasOne(typeof(CompetitionEvent)).WithMany()
+                .HasForeignKey("EventId").OnDelete(DeleteBehavior.Restrict);
+            builder.Entity(t).HasOne(typeof(Athlete)).WithMany()
+                .HasForeignKey("AthleteId").OnDelete(DeleteBehavior.Restrict);
+            builder.Entity(t).HasOne(typeof(Team)).WithMany()
+                .HasForeignKey("TeamId").OnDelete(DeleteBehavior.Restrict);
+        }
+
+        // MatchLiveSnapshot.Id CHÍNH LÀ Match.Id (xem comment trong Model)
+        // — quan hệ 1-1 dùng chung khoá chính. Khác QuyenResult ở trên:
+        // đây thuần là bản sao lưu/cache trạng thái sống, không có giá trị
+        // độc lập gì khi Match gốc không còn — Cascade là đúng, xoá Match
+        // (VD lúc bốc thăm lại 1 nội dung) tự dọn theo, không để rác lại.
+        builder.Entity<MatchLiveSnapshot>()
+            .HasOne<Match>()
+            .WithOne()
+            .HasForeignKey<MatchLiveSnapshot>(s => s.Id)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }

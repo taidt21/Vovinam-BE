@@ -29,7 +29,7 @@ public class TournamentController : ControllerBase
     public async Task<ActionResult<TournamentDto>> Get()
     {
         var t = await GetOrCreateSingleton();
-        return Ok(new TournamentDto { Id = t.Id, Ten = t.Ten, SoSan = t.SoSan, ChoPhepHiepPhu = t.ChoPhepHiepPhu });
+        return Ok(ToDto(t));
     }
     [Authorize(Roles = "Admin")]
     [HttpPut]
@@ -39,13 +39,27 @@ public class TournamentController : ControllerBase
         t.Ten = dto.Ten;
         t.SoSan = dto.SoSan;
         t.ChoPhepHiepPhu = dto.ChoPhepHiepPhu;
+        t.HeSoVang = dto.HeSoVang;
+        t.HeSoBac = dto.HeSoBac;
+        t.HeSoDong = dto.HeSoDong;
         await _db.SaveChangesAsync();
         // Trang Bàn thư ký chỉ tải Tournament đúng 1 lần lúc mở — nếu tab
         // đó đã mở sẵn từ trước lúc BTC đổi cài đặt (VD tích "cho phép
         // hiệp phụ"), báo ngay để nó tự tải lại, khỏi phải nhớ F5 tay.
         await _hub.Clients.All.SendAsync("TournamentChanged");
-        return Ok(new TournamentDto { Id = t.Id, Ten = t.Ten, SoSan = t.SoSan, ChoPhepHiepPhu = t.ChoPhepHiepPhu });
+        return Ok(ToDto(t));
     }
+
+    private static TournamentDto ToDto(Tournament t) => new()
+    {
+        Id = t.Id,
+        Ten = t.Ten,
+        SoSan = t.SoSan,
+        ChoPhepHiepPhu = t.ChoPhepHiepPhu,
+        HeSoVang = t.HeSoVang,
+        HeSoBac = t.HeSoBac,
+        HeSoDong = t.HeSoDong,
+    };
 
     private async Task<Tournament> GetOrCreateSingleton()
     {
