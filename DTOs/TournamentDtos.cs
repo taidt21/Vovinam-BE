@@ -11,6 +11,7 @@ public class TournamentDto
     public int HeSoVang { get; set; }
     public int HeSoBac { get; set; }
     public int HeSoDong { get; set; }
+    public bool ChoPhepDongHangBaQuyen { get; set; }
 }
 
 public class TournamentUpsertDto
@@ -21,4 +22,5 @@ public class TournamentUpsertDto
     [Range(0, 1000)] public int HeSoVang { get; set; } = 50;
     [Range(0, 1000)] public int HeSoBac { get; set; } = 20;
     [Range(0, 1000)] public int HeSoDong { get; set; } = 10;
+    public bool ChoPhepDongHangBaQuyen { get; set; } = true;
 }

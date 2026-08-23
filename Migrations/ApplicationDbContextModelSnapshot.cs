@@ -360,6 +360,9 @@ namespace vovinam_backend.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<bool>("ChoPhepDongHangBaQuyen")
+                        .HasColumnType("bit");
+
                     b.Property<bool>("ChoPhepHiepPhu")
                         .HasColumnType("bit");
 
