@@ -20,6 +20,19 @@ builder.Services.AddSwaggerGen();
 builder.Services.AddSignalR();
 builder.Services.AddSingleton<LiveCourtStateStore>();
 
+// Tải ảnh VĐV từ URL WordPress về local. Tắt auto-redirect để service
+// tự kiểm tra lại từng URL redirect, tránh redirect vào localhost/private IP.
+builder.Services
+    .AddHttpClient<AthleteImageService>(client =>
+    {
+        client.Timeout = TimeSpan.FromSeconds(15);
+        client.DefaultRequestHeaders.UserAgent.ParseAdd("VovinamTournament/1.0");
+    })
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+    {
+        AllowAutoRedirect = false,
+    });
+
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("Default")));
 

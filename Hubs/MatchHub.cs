@@ -157,6 +157,27 @@ public class MatchHub : Hub
         _store.SetActiveMode(courtId, mode);
         await Clients.Group(GroupName(courtId)).SendAsync("ActiveModeUpdated", courtId, mode);
     }
+
+    // BTC bấm "X" gỡ trận/lượt đang chờ ở ĐÚNG 1 bên (doi_khang hoặc
+    // quyen) tại 1 sân — dọn sạch trạng thái sống của đúng bên đó và tạm
+    // ngưng tự động nhận trận/lượt kế tiếp CHO ĐÚNG bên đó, bên còn lại
+    // không bị đụng tới. Bắt đầu thủ công 1 trận/lượt mới (bên tương ứng)
+    // sẽ tự tắt lại cờ này — xem chỗ gọi ở BanThuKy.tsx.
+    public async Task SetCourtResting(string courtId, string mode, bool dangNghi)
+    {
+        if (mode != "doi_khang" && mode != "quyen") return;
+        if (mode == "doi_khang")
+        {
+            _store.SetDangNghiDoiKhang(courtId, dangNghi);
+            if (dangNghi) await ClearMatchState(courtId);
+        }
+        else
+        {
+            _store.SetDangNghiQuyen(courtId, dangNghi);
+            if (dangNghi) await ClearQuyenState(courtId);
+        }
+        await Clients.Group(GroupName(courtId)).SendAsync("CourtRestingUpdated", courtId, mode, dangNghi);
+    }
     // mau: "do" | "xanh". diem: 1 hoặc 2 — đúng 4 nút trên màn trọng tài.
     // tenTrongTai: tên hiển thị (backend không có bảng trọng tài riêng,
     // lấy thẳng tên từ chính thiết bị gửi lên để ghi log dễ đọc).
@@ -187,7 +208,13 @@ public class MatchHub : Hub
         await Clients.OthersInGroup(GroupName(courtId)).SendAsync("LightPressed", courtId, giamDinhId, tenTrongTai, mau, diem, luc);
         await Clients.Group(GroupName(courtId)).SendAsync("LogEntryAdded", courtId, pressLog);
 
-        var result = _store.RegisterPressAndCheckConsensus(courtId, mau, diem, giamDinhId, luc);
+        // Đọc cửa sổ đồng thuận hiện hành từ Thiết lập giải mỗi lần bấm —
+        // để BTC đổi giữa chừng giải là có hiệu lực ngay từ pha kế tiếp,
+        // không cần restart hay đợi cache nào hết hạn.
+        var tournament = await _db.Tournaments.FirstOrDefaultAsync();
+        var cuaSoGiay = tournament?.CuaSoDongThuanGiay ?? 1.5;
+
+        var result = _store.RegisterPressAndCheckConsensus(courtId, mau, diem, giamDinhId, luc, cuaSoGiay);
         if (result == null) return;
 
         var (diemThat, soLuong) = result.Value;

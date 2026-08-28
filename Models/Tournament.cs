@@ -13,9 +13,19 @@ public class Tournament
     public int HeSoBac { get; set; } = 20;
     public int HeSoDong { get; set; } = 10;
 
-    // Quyền: 2 lượt bằng điểm tổng có được cùng nhận HCĐ (đồng hạng ba)
-    // không, hay phải phân định bằng điểm giám khảo cao nhất (hiệu số
-    // phụ). Mặc định cho phép — khớp luật đối kháng vốn luôn cho đồng
-    // hạng ba (2 người thua bán kết, không có trận tranh hạng 3).
+    // Quyền: hạng 4 có được nhận thêm 1 suất HCĐ cùng hạng 3 hay không —
+    // THUẦN theo vị trí xếp hạng, không liên quan gì đến việc hạng 3/4 có
+    // bằng điểm tổng hay không (hiệu số phụ theo điểm giám khảo cao nhất
+    // dùng để phân định THỨ TỰ khi bằng điểm tổng luôn áp dụng sẵn, không
+    // phụ thuộc cờ này — xem computeQuyenRanking ở frontend). Mặc định
+    // cho phép — khớp luật đối kháng vốn luôn cho đồng hạng ba (2 người
+    // thua bán kết, không có trận tranh hạng 3).
     public bool ChoPhepDongHangBaQuyen { get; set; } = true;
+
+    // Đối kháng: cửa sổ thời gian (giây) để gộp phiếu bấm đèn — đủ 3/5
+    // trọng tài bấm cùng màu trong đúng khoảng này thì tính là ĐỒNG
+    // THUẬN, chốt điểm ngay. Trước đây đóng cứng 1.5s trong code
+    // (LiveCourtStateStore.ConsensusWindow); giờ BTC tự chỉnh theo thực
+    // tế từng giải (trọng tài quen tay bấm nhanh/chậm khác nhau).
+    public double CuaSoDongThuanGiay { get; set; } = 1.5;
 }

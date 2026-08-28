@@ -364,3 +364,6 @@ FodyWeavers.xsd
 # App tu sinh JWT key cuc bo neu chua cau hinh qua user-secrets/
 # environment variable -- KHONG duoc commit, moi may tu co key rieng.
 *.local.txt
+
+# Ảnh VĐV tải từ WordPress lúc runtime — không commit vào Git.
+wwwroot/uploads/

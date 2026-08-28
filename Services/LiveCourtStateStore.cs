@@ -12,6 +12,11 @@ public class LiveCourtStateStore
         public JsonNode? MatchState { get; set; }
         public JsonNode? QuyenState { get; set; }
         public string? ActiveMode { get; set; } // "doi_khang" | "quyen" | null — tab BTK đang mở cho sân này
+        // BTC bấm "X" gỡ trận/lượt đang chờ ở đúng 1 bên (đối kháng hoặc
+        // quyền) — tạm ngưng tự động nhận trận/lượt kế tiếp cho ĐÚNG bên
+        // đó, bên còn lại không ảnh hưởng.
+        public bool DangNghiDoiKhang { get; set; }
+        public bool DangNghiQuyen { get; set; }
         public ConcurrentDictionary<string, JsonNode> RefereeScores { get; } = new();
     }
 
@@ -56,6 +61,8 @@ public class LiveCourtStateStore
             matchState = s.MatchState,
             quyenState = s.QuyenState,
             activeMode = s.ActiveMode,
+            dangNghiDoiKhang = s.DangNghiDoiKhang,
+            dangNghiQuyen = s.DangNghiQuyen,
             refereeScores = s.RefereeScores.Values.ToList(),
             log = GetLog(courtId),
         };
@@ -63,6 +70,11 @@ public class LiveCourtStateStore
 
     public void SetActiveMode(string courtId, string? mode) => GetOrCreate(courtId).ActiveMode = mode;
     public string? GetActiveMode(string courtId) => GetOrCreate(courtId).ActiveMode;
+
+    public void SetDangNghiDoiKhang(string courtId, bool val) => GetOrCreate(courtId).DangNghiDoiKhang = val;
+    public bool GetDangNghiDoiKhang(string courtId) => GetOrCreate(courtId).DangNghiDoiKhang;
+    public void SetDangNghiQuyen(string courtId, bool val) => GetOrCreate(courtId).DangNghiQuyen = val;
+    public bool GetDangNghiQuyen(string courtId) => GetOrCreate(courtId).DangNghiQuyen;
 
     public void SetMatchState(string courtId, JsonNode matchState)
     {
@@ -190,22 +202,24 @@ public class LiveCourtStateStore
     }
 
     // Gộp theo MÀU (không tách theo mức điểm nữa) — đủ 3 người đồng ý
-    // cùng màu trong cửa sổ 1.5s là ĐỦ ĐIỀU KIỆN, mức điểm thật (1 hay 2)
-    // quyết định bằng đa số NGAY TRONG đúng 3 người đó. Luôn chốt lại
-    // đúng lúc vừa đủ 3 (không đợi thêm người thứ 4/5), nên nhóm xét luôn
-    // có số lẻ — luôn ra đa số rõ ràng, không thể hòa.
-    private static readonly TimeSpan ConsensusWindow = TimeSpan.FromSeconds(1.5);
+    // cùng màu trong cửa sổ thời gian (đọc từ Tournament.CuaSoDongThuanGiay,
+    // BTC tự chỉnh ở Thiết lập giải — trước đây đóng cứng 1.5s ở đây) là
+    // ĐỦ ĐIỀU KIỆN, mức điểm thật (1 hay 2) quyết định bằng đa số NGAY
+    // TRONG đúng 3 người đó. Luôn chốt lại đúng lúc vừa đủ 3 (không đợi
+    // thêm người thứ 4/5), nên nhóm xét luôn có số lẻ — luôn ra đa số rõ
+    // ràng, không thể hòa.
     private const int ConsensusThreshold = 3;
     private readonly ConcurrentDictionary<string, List<PressRecord>> _pressWindows = new();
 
     public (int diem, int soLuong)? RegisterPressAndCheckConsensus(
-        string courtId, string mau, int diem, string giamDinhId, DateTimeOffset luc)
+        string courtId, string mau, int diem, string giamDinhId, DateTimeOffset luc, double cuaSoDongThuanGiay)
     {
+        var consensusWindow = TimeSpan.FromSeconds(cuaSoDongThuanGiay);
         var bucketKey = $"{courtId}::{mau}";
         var list = _pressWindows.GetOrAdd(bucketKey, _ => new List<PressRecord>());
         lock (list)
         {
-            list.RemoveAll(p => luc - p.Luc > ConsensusWindow);
+            list.RemoveAll(p => luc - p.Luc > consensusWindow);
             list.RemoveAll(p => p.GiamDinhId == giamDinhId); // 1 trọng tài chỉ tính lần bấm gần nhất trong cửa sổ
             list.Add(new PressRecord { GiamDinhId = giamDinhId, Diem = diem, Luc = luc });
 

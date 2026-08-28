@@ -29,6 +29,10 @@ public class ApplicationDbContext : DbContext
             .IsUnique();
 
         builder.Entity<Athlete>()
+            .Property(a => a.AnhDaiDien)
+            .HasMaxLength(2048);
+
+        builder.Entity<Athlete>()
             .HasOne(a => a.Team)
             .WithMany(t => t.Athletes)
             .HasForeignKey(a => a.TeamId)
