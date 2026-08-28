@@ -1,8 +1,10 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using VovinamApi.Data;
 using VovinamApi.DTOs;
+using VovinamApi.Hubs;
 using VovinamApi.Models;
 
 namespace VovinamApi.Controllers;
@@ -12,10 +14,12 @@ namespace VovinamApi.Controllers;
 public class TrongTaiController : ControllerBase
 {
     private readonly ApplicationDbContext _db;
+    private readonly IHubContext<MatchHub> _hub;
 
-    public TrongTaiController(ApplicationDbContext db)
+    public TrongTaiController(ApplicationDbContext db, IHubContext<MatchHub> hub)
     {
         _db = db;
+        _hub = hub;
     }
 
     // Mở — thiết bị trọng tài (không đăng nhập admin) cần đọc danh sách
@@ -46,6 +50,7 @@ public class TrongTaiController : ControllerBase
         };
         _db.TrongTais.Add(trongTai);
         await _db.SaveChangesAsync();
+        await _hub.Clients.All.SendAsync("TrongTaiChanged");
 
         return CreatedAtAction(nameof(GetAll), ToDto(trongTai));
     }
@@ -68,6 +73,7 @@ public class TrongTaiController : ControllerBase
         trongTai.ThuTuGiamDinh = dto.ThuTuGiamDinh;
 
         await _db.SaveChangesAsync();
+        await _hub.Clients.All.SendAsync("TrongTaiChanged");
         return NoContent();
     }
 
@@ -80,6 +86,7 @@ public class TrongTaiController : ControllerBase
 
         _db.TrongTais.Remove(trongTai);
         await _db.SaveChangesAsync();
+        await _hub.Clients.All.SendAsync("TrongTaiChanged");
         return NoContent();
     }
 

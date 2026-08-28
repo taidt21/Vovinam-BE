@@ -6,15 +6,12 @@
 		<ImplicitUsings>enable</ImplicitUsings>
 		<RootNamespace>vovinam_backend</RootNamespace>
 		<UserSecretsId>de3124f0-6ea2-406b-97c8-999df48832bd</UserSecretsId>
-		<DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
-		<DockerfileContext>.</DockerfileContext>
 	</PropertyGroup>
 
 
 
 	<ItemGroup>
 		<PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.*" />
-		<PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="8.*" />
 		<PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.*">
 			<PrivateAssets>all</PrivateAssets>
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
@@ -23,7 +20,7 @@
 			<PrivateAssets>all</PrivateAssets>
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
-		<PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.*" />
+		<PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="8.*" />
 		<PackageReference Include="Swashbuckle.AspNetCore" Version="6.*" />
 	</ItemGroup>
 
