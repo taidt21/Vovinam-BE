@@ -1,6 +1,9 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using System.Diagnostics;
+using System.Net;
+using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
 using VovinamApi.Data;
@@ -151,6 +154,50 @@ app.UseAuthorization();
 app.MapControllers();
 app.MapHub<MatchHub>("/hubs/match");
 app.MapFallbackToFile("index.html");
+
+// Tự mở trình duyệt vào đúng trang đăng nhập BTC ngay khi server sẵn
+// sàng nhận request. Mở đúng theo IP LAN thật của máy (không phải
+// "localhost") — vì mục đích chính là để BTC nhìn thẳng vào thanh địa
+// chỉ là biết ngay URL cần đưa cho trọng tài/màn hình công khai/BTK sân
+// khác, khỏi phải tự chạy ipconfig tìm tay mỗi lần mở giải.
+app.Lifetime.ApplicationStarted.Register(() =>
+{
+    try
+    {
+        var urlDauTien = app.Urls.FirstOrDefault();
+        var port = urlDauTien != null && Uri.TryCreate(urlDauTien, UriKind.Absolute, out var uri)
+            ? uri.Port
+            : 2004; 
+        var host = LayIpLan() ?? "localhost";
+        var duongDanMo = $"http://{host}:{port}/";
+        Process.Start(new ProcessStartInfo(duongDanMo) { UseShellExecute = true });
+    }
+    catch (Exception ex)
+    {
+        app.Logger.LogWarning(ex,
+            "Không tự mở được trình duyệt — vào tay địa chỉ http://localhost:2004/ nếu cần.");
+    }
+});
+
+// Lấy đúng IP LAN thật của máy — mẹo: "kết nối" UDP tới 1 địa chỉ ngoài
+// (8.8.8.8) không thật sự gửi gì đi cả (UDP không bắt tay), chỉ để hệ
+// điều hành tự chọn đúng card mạng/IP sẽ dùng để ra ngoài theo bảng định
+// tuyến sẵn có — vẫn hoạt động dù máy không có Internet thật, miễn có
+// mạng LAN/WiFi đang kết nối. Trả về null (rồi rơi về "localhost") nếu
+// máy không có mạng nào cả.
+static string? LayIpLan()
+{
+    try
+    {
+        using var socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+        socket.Connect("8.8.8.8", 65530);
+        return (socket.LocalEndPoint as IPEndPoint)?.Address.ToString();
+    }
+    catch
+    {
+        return null;
+    }
+}
 
 app.Run();
 

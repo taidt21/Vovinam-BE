@@ -23,15 +23,18 @@ if exist wwwroot rmdir /s /q wwwroot
 mkdir wwwroot
 xcopy /e /i /y "%FRONTEND_DIR%\dist\*" wwwroot\
 
-echo === 3. Publish backend ===
-dotnet publish -c Release -o %OUTPUT_DIR%
+echo === 3. Publish backend (tu goi san .NET Runtime, khong can cai gi tren may khac) ===
+dotnet publish -c Release -o %OUTPUT_DIR% -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
 if errorlevel 1 (
     echo Publish backend that bai. Dung lai.
     exit /b 1
 )
 
 echo.
-echo Xong. File chay nam trong %OUTPUT_DIR%\vovinam-backend.exe
-echo Nho copy ca thu muc %OUTPUT_DIR% khi mang sang may khac -- kem file
-echo vovinam.db neu da co du lieu, va wwwroot\uploads neu co anh VDV.
+echo Xong. File chay nam trong %OUTPUT_DIR%\vovinam-backend.exe -- tu goi
+echo san .NET Runtime ben trong, may khac KHONG can cai .NET gi ca, chi
+echo can copy dung thu muc %OUTPUT_DIR% roi chay thang file .exe.
+echo Bo doi lai, bo publish nay nang hon han (gop ca Runtime ~60-100MB).
+echo Nho copy kem file vovinam.db neu da co du lieu, va wwwroot\uploads
+echo neu co anh VDV/logo, khi mang sang may khac.
 endlocal

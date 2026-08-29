@@ -1,4 +1,4 @@
-@vovinam_backend_HostAddress = http://localhost:5267
+@vovinam_backend_HostAddress = http://localhost:2004
 
 GET {{vovinam_backend_HostAddress}}/weatherforecast/
 Accept: application/json
