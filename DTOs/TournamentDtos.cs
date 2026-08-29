@@ -13,6 +13,7 @@ public class TournamentDto
     public int HeSoDong { get; set; }
     public bool ChoPhepDongHangBaQuyen { get; set; }
     public double CuaSoDongThuanGiay { get; set; }
+    public string TieuDeThe { get; set; } = string.Empty;
 }
 
 public class TournamentUpsertDto
@@ -25,4 +26,5 @@ public class TournamentUpsertDto
     [Range(0, 1000)] public int HeSoDong { get; set; } = 10;
     public bool ChoPhepDongHangBaQuyen { get; set; } = true;
     [Range(0.5, 5.0)] public double CuaSoDongThuanGiay { get; set; } = 1.5;
+    [MaxLength(500)] public string TieuDeThe { get; set; } = string.Empty;
 }

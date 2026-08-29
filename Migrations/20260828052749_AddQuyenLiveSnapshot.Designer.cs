@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using VovinamApi.Data;
 
@@ -10,9 +11,11 @@ using VovinamApi.Data;
 namespace vovinam_backend.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260828052749_AddQuyenLiveSnapshot")]
+    partial class AddQuyenLiveSnapshot
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "8.0.30");
@@ -370,24 +373,6 @@ namespace vovinam_backend.Migrations
                     b.ToTable("Teams");
                 });
 
-            modelBuilder.Entity("VovinamApi.Models.TheVdvLogo", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("DuongDan")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("ThuTu")
-                        .HasColumnType("INTEGER");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("TheVdvLogos");
-                });
-
             modelBuilder.Entity("VovinamApi.Models.Tournament", b =>
                 {
                     b.Property<Guid>("Id")
@@ -416,10 +401,6 @@ namespace vovinam_backend.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("Ten")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("TieuDeThe")
                         .IsRequired()
                         .HasColumnType("TEXT");
 

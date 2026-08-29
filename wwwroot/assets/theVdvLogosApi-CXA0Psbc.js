@@ -1,0 +1,1 @@
+import{a as e,n as t,t as n}from"./api-CUEIc9DX.js";function r(){return t(`/the-vdv-logos`)}function i(t){let n=new FormData;return n.append(`file`,t),e(`/the-vdv-logos`,n)}function a(e){return n(`/the-vdv-logos/${e}`)}export{r as n,i as r,a as t};

@@ -28,4 +28,10 @@ public class Tournament
     // (LiveCourtStateStore.ConsensusWindow); giờ BTC tự chỉnh theo thực
     // tế từng giải (trọng tài quen tay bấm nhanh/chậm khác nhau).
     public double CuaSoDongThuanGiay { get; set; } = 1.5;
+
+    // Tiêu đề in trên thẻ VĐV — để trống thì trang in không hiện dòng nào
+    // cả (mẫu thẻ mới không in cứng tên giải như bản demo cũ nữa, để 1
+    // mẫu dùng lại được nhiều giải). Cho phép nhiều dòng (BTC tự xuống
+    // dòng khi nhập), không giới hạn độ dài.
+    public string TieuDeThe { get; set; } = string.Empty;
 }

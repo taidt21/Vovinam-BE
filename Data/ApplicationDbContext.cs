@@ -19,7 +19,9 @@ public class ApplicationDbContext : DbContext
     public DbSet<TrongTai> TrongTais => Set<TrongTai>();
     public DbSet<QuyenLuotHoanThanh> QuyenLuotHoanThanhs => Set<QuyenLuotHoanThanh>();
     public DbSet<MatchLiveSnapshot> MatchLiveSnapshots => Set<MatchLiveSnapshot>();
+    public DbSet<QuyenLiveSnapshot> QuyenLiveSnapshots => Set<QuyenLiveSnapshot>();
     public DbSet<BanThuKyAccount> BanThuKyAccounts => Set<BanThuKyAccount>();
+    public DbSet<TheVdvLogo> TheVdvLogos => Set<TheVdvLogo>();
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -97,5 +99,11 @@ public class ApplicationDbContext : DbContext
             .WithOne()
             .HasForeignKey<MatchLiveSnapshot>(s => s.Id)
             .OnDelete(DeleteBehavior.Cascade);
+
+        // Quyền không có 1 entity "gốc" ổn định để làm quan hệ 1-1 như
+        // Match ở trên (xem comment trong Model) — chỉ cần CourtId làm
+        // khoá chính thẳng, không có FK nào để cascade theo.
+        builder.Entity<QuyenLiveSnapshot>()
+            .HasKey(s => s.CourtId);
     }
 }

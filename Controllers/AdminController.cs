@@ -38,6 +38,7 @@ public class AdminController : ControllerBase
         await _db.QuyenResults.ExecuteDeleteAsync();
         await _db.QuyenLuotHoanThanhs.ExecuteDeleteAsync();
         await _db.MatchLiveSnapshots.ExecuteDeleteAsync();
+        await _db.QuyenLiveSnapshots.ExecuteDeleteAsync();
         await _db.TrongTais.ExecuteDeleteAsync();
         await _db.PerformanceOrders.ExecuteDeleteAsync();
         await _db.Matches.ExecuteDeleteAsync();

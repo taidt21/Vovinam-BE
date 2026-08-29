@@ -50,6 +50,35 @@ public class MatchHub : Hub
         await _db.SaveChangesAsync();
     }
 
+    // Y hệt LuuSnapshotAsync ở trên nhưng cho quyền — khoá theo courtId
+    // (đọc thẳng từ field courtId trong JSON) thay vì matchId, vì quyền
+    // không có 1 "Id" ổn định cho từng lượt thi.
+    private async Task LuuQuyenSnapshotAsync(JsonNode quyenState)
+    {
+        var courtIdNode = quyenState["courtId"];
+        if (courtIdNode == null) return;
+        var courtId = courtIdNode.GetValue<string>();
+        if (string.IsNullOrEmpty(courtId)) return;
+
+        var existing = await _db.QuyenLiveSnapshots.FindAsync(courtId);
+        var json = quyenState.ToJsonString();
+        if (existing != null)
+        {
+            existing.StateJson = json;
+            existing.CapNhatLuc = DateTimeOffset.UtcNow;
+        }
+        else
+        {
+            _db.QuyenLiveSnapshots.Add(new QuyenLiveSnapshot
+            {
+                CourtId = courtId,
+                StateJson = json,
+                CapNhatLuc = DateTimeOffset.UtcNow,
+            });
+        }
+        await _db.SaveChangesAsync();
+    }
+
     public async Task JoinCourt(string courtId)
     {
         await Groups.AddToGroupAsync(Context.ConnectionId, GroupName(courtId));
@@ -78,6 +107,21 @@ public class MatchHub : Hub
                     var node = JsonNode.Parse(snapshot.StateJson);
                     if (node != null) _store.SetMatchState(courtId, node);
                 }
+            }
+        }
+
+        // Y hệt lý do ở trên, chỉ đảo ngược điều kiện: quyền không có bảng
+        // Match để đối chiếu "còn đang thật sự sống không" (PerformanceOrder
+        // không mang trạng thái sống), nên chỉ dựa vào việc CÓ bản snapshot
+        // hay không + ActiveMode không phải "doi_khang" (tránh đè lên đúng
+        // lúc BTK vừa chủ động chuyển sang đối kháng).
+        if (_store.GetQuyenState(courtId) == null && _store.GetActiveMode(courtId) != "doi_khang")
+        {
+            var quyenSnapshot = await _db.QuyenLiveSnapshots.FindAsync(courtId);
+            if (quyenSnapshot != null)
+            {
+                var node = JsonNode.Parse(quyenSnapshot.StateJson);
+                if (node != null) _store.SetQuyenState(courtId, node);
             }
         }
 
@@ -139,14 +183,45 @@ public class MatchHub : Hub
     public async Task PublishQuyenState(string courtId, JsonElement quyenState)
     {
         var node = JsonNode.Parse(quyenState.GetRawText());
-        if (node != null) _store.SetQuyenState(courtId, node);
-        await Clients.OthersInGroup(GroupName(courtId)).SendAsync("QuyenStateUpdated", courtId, quyenState);
+        if (node == null) return;
+
+        await _store.WithCourtLockAsync(courtId, async () =>
+        {
+            _store.SetQuyenState(courtId, node);
+            await Clients.OthersInGroup(GroupName(courtId)).SendAsync("QuyenStateUpdated", courtId, quyenState);
+
+            try
+            {
+                await LuuQuyenSnapshotAsync(node);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Lưu snapshot quyền thất bại cho sân {CourtId} (PublishQuyenState)", courtId);
+            }
+        });
     }
 
     public async Task ClearQuyenState(string courtId)
     {
-        _store.ClearQuyenState(courtId);
-        await Clients.OthersInGroup(GroupName(courtId)).SendAsync("QuyenStateCleared", courtId);
+        await _store.WithCourtLockAsync(courtId, async () =>
+        {
+            _store.ClearQuyenState(courtId);
+            await Clients.OthersInGroup(GroupName(courtId)).SendAsync("QuyenStateCleared", courtId);
+
+            try
+            {
+                var snapshot = await _db.QuyenLiveSnapshots.FindAsync(courtId);
+                if (snapshot != null)
+                {
+                    _db.QuyenLiveSnapshots.Remove(snapshot);
+                    await _db.SaveChangesAsync();
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Xoá snapshot quyền thất bại cho sân {CourtId} (ClearQuyenState)", courtId);
+            }
+        });
     }
 
     // Tab Bàn thư ký đang mở cho sân này ("doi_khang"/"quyen"/null) — quyết

@@ -44,6 +44,7 @@ public class TournamentController : ControllerBase
         t.HeSoDong = dto.HeSoDong;
         t.ChoPhepDongHangBaQuyen = dto.ChoPhepDongHangBaQuyen;
         t.CuaSoDongThuanGiay = dto.CuaSoDongThuanGiay;
+        t.TieuDeThe = dto.TieuDeThe;
         await _db.SaveChangesAsync();
         // Trang Bàn thư ký chỉ tải Tournament đúng 1 lần lúc mở — nếu tab
         // đó đã mở sẵn từ trước lúc BTC đổi cài đặt (VD tích "cho phép
@@ -63,6 +64,7 @@ public class TournamentController : ControllerBase
         HeSoDong = t.HeSoDong,
         ChoPhepDongHangBaQuyen = t.ChoPhepDongHangBaQuyen,
         CuaSoDongThuanGiay = t.CuaSoDongThuanGiay,
+        TieuDeThe = t.TieuDeThe,
     };
 
     private async Task<Tournament> GetOrCreateSingleton()

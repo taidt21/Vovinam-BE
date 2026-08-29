@@ -1,0 +1,1 @@
+import{i as e,n as t,t as n}from"./api-CUEIc9DX.js";function r(){return t(`/quyen-judge-scores`)}function i(t){return e(`/quyen-judge-scores`,t)}function a(e,t,r){let i=new URLSearchParams({eventId:e});return t&&i.set(`athleteId`,t),r&&i.set(`teamId`,r),n(`/quyen-judge-scores?${i.toString()}`)}export{r as n,i as r,a as t};
