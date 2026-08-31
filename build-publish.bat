@@ -24,7 +24,7 @@ mkdir wwwroot
 xcopy /e /i /y "%FRONTEND_DIR%\dist\*" wwwroot\
 
 echo === 3. Publish backend (tu goi san .NET Runtime, khong can cai gi tren may khac) ===
-dotnet publish -c Release -o %OUTPUT_DIR% -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
+dotnet publish vovinam-backend.csproj -c Release -o %OUTPUT_DIR% -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
 if errorlevel 1 (
     echo Publish backend that bai. Dung lai.
     exit /b 1
