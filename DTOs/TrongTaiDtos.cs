@@ -6,6 +6,8 @@ public class TrongTaiDto
     public string HoTen { get; set; } = string.Empty;
     public string? CourtId { get; set; }
     public int? ThuTuGiamDinh { get; set; }
+    public string? DonVi { get; set; }
+    public string? AnhDaiDien { get; set; }
 }
 
 public class TrongTaiUpsertDto
@@ -13,4 +15,5 @@ public class TrongTaiUpsertDto
     public string HoTen { get; set; } = string.Empty;
     public string? CourtId { get; set; }
     public int? ThuTuGiamDinh { get; set; }
+    public string? DonVi { get; set; }
 }

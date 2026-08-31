@@ -12,4 +12,9 @@ public class TrongTai
     // 1-5 = đang là Giám định số mấy tại sân đó (đang hoạt động).
     // Null = có trong danh sách của sân nhưng đang dự bị, không active.
     public int? ThuTuGiamDinh { get; set; }
+
+    // 2 trường dưới đây chỉ phục vụ in thẻ trọng tài — không liên quan
+    // gì tới việc gán sân/chấm điểm ở trên.
+    public string? DonVi { get; set; }
+    public string? AnhDaiDien { get; set; } // "/uploads/trong-tai/xxx.jpg"
 }
