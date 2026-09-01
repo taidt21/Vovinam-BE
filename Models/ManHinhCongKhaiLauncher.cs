@@ -1,0 +1,252 @@
+using System.Diagnostics;
+using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
+
+namespace VovinamApi.Services;
+
+// Toàn bộ việc "tìm màn hình phụ + mở trình duyệt kiosk + theo dõi/đóng
+// đúng đúng tiến trình đó" nằm ở ĐÂY (backend, chạy như 1 tiến trình
+// Windows thật) — KHÔNG làm ở frontend/JS nữa, vì trình duyệt (nơi
+// frontend đang chạy) cố tình khoá chặt quyền enum màn hình + điều
+// khiển cửa sổ của chính nó, còn 1 tiến trình .NET native thì không bị
+// giới hạn đó, gọi thẳng Win32 API được.
+public class ManHinhCongKhaiLauncher
+{
+    private readonly ILogger<ManHinhCongKhaiLauncher> _logger;
+    private Process? _tienTrinh;
+    private readonly object _khoa = new();
+
+    public ManHinhCongKhaiLauncher(ILogger<ManHinhCongKhaiLauncher> logger)
+    {
+        _logger = logger;
+    }
+
+    // Coi là "đang chạy" khi tiến trình mình từng mở vẫn còn sống —
+    // nếu user tự tay đóng cửa sổ đó (Alt+F4...) thì HasExited tự lên
+    // true, lần bấm "Mở" tiếp theo sẽ coi như chưa có gì, mở lại bình
+    // thường. KHÔNG có cơ chế nào coi 1 process TRÌNH DUYỆT KHÁC (do
+    // user tự mở tay) là "đang chạy" — chỉ theo dõi đúng process do
+    // chính hàm Mo() bên dưới tạo ra.
+    public bool DangChay
+    {
+        get
+        {
+            lock (_khoa)
+            {
+                return _tienTrinh != null && !_tienTrinh.HasExited;
+            }
+        }
+    }
+
+    [SupportedOSPlatform("windows")]
+    public (bool ThanhCong, string ThongBao) Mo(string url)
+    {
+        lock (_khoa)
+        {
+            if (_tienTrinh != null && !_tienTrinh.HasExited)
+            {
+                // Yêu cầu: không spawn thêm cửa sổ nếu bấm nhiều lần.
+                return (true, "Màn hình công khai đang mở sẵn rồi.");
+            }
+
+            if (!OperatingSystem.IsWindows())
+            {
+                return (false, "Tính năng này chỉ hỗ trợ Windows.");
+            }
+
+            var trinhDuyet = TimTrinhDuyet();
+            if (trinhDuyet == null)
+            {
+                return (false, "Không tìm thấy Chrome hoặc Edge đã cài trên máy này.");
+            }
+
+            var manHinh = ChonManHinhDich();
+
+            // Profile riêng, KHÔNG đụng gì tới profile Chrome/Edge cá
+            // nhân của người dùng (lịch sử, đăng nhập, extension...) —
+            // nằm cạnh chỗ chạy .exe, tự tạo nếu chưa có.
+            var thuMucProfile = Path.Combine(AppContext.BaseDirectory, "kiosk-profile");
+            Directory.CreateDirectory(thuMucProfile);
+
+            var psi = new ProcessStartInfo
+            {
+                FileName = trinhDuyet.DuongDan,
+                UseShellExecute = false,
+            };
+            psi.ArgumentList.Add("--kiosk");
+            psi.ArgumentList.Add(url);
+            psi.ArgumentList.Add($"--window-position={manHinh.X},{manHinh.Y}");
+            psi.ArgumentList.Add($"--user-data-dir={thuMucProfile}");
+            psi.ArgumentList.Add("--no-first-run");
+            psi.ArgumentList.Add("--noerrdialogs");
+            if (trinhDuyet.LaEdge)
+            {
+                // Riêng Edge cần thêm cờ này thì --kiosk mới thật sự full
+                // màn hình (Chrome không có/không cần cờ tương đương).
+                psi.ArgumentList.Add("--edge-kiosk-type=fullscreen");
+            }
+
+            try
+            {
+                var p = Process.Start(psi);
+                if (p == null)
+                {
+                    return (false, "Không khởi động được trình duyệt.");
+                }
+                _tienTrinh = p;
+                _logger.LogInformation(
+                    "Đã mở màn hình công khai (PID {Pid}) tại màn hình x={X},y={Y}",
+                    p.Id, manHinh.X, manHinh.Y);
+                return (true, manHinh.LaManHinhPhu
+                    ? "Đã mở màn hình công khai ở màn hình mở rộng."
+                    : "Đã mở màn hình công khai (chỉ phát hiện 1 màn hình, mở tại màn hình chính).");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Mở màn hình công khai thất bại");
+                return (false, $"Mở thất bại: {ex.Message}");
+            }
+        }
+    }
+
+    public (bool ThanhCong, string ThongBao) Dong()
+    {
+        lock (_khoa)
+        {
+            if (_tienTrinh == null || _tienTrinh.HasExited)
+            {
+                _tienTrinh = null;
+                return (true, "Không có màn hình công khai nào đang mở.");
+            }
+
+            try
+            {
+                // entireProcessTree: true — Chrome/Edge chạy nhiều tiến
+                // trình con (renderer, GPU...), chỉ Kill() đúng 1 PID gốc
+                // dễ để sót cửa sổ vẫn còn hiển thị. CHỈ kill đúng cây
+                // tiến trình này — không đụng tới trình duyệt khác user
+                // đang dùng, vì đây là tiến trình dùng --user-data-dir
+                // riêng, hoàn toàn tách biệt.
+                _tienTrinh.Kill(entireProcessTree: true);
+                _tienTrinh.Dispose();
+                _tienTrinh = null;
+                return (true, "Đã đóng màn hình công khai.");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Đóng màn hình công khai thất bại");
+                return (false, $"Đóng thất bại: {ex.Message}");
+            }
+        }
+    }
+
+    private sealed record TrinhDuyet(string DuongDan, bool LaEdge);
+
+    // Cố tình dùng đường dẫn cài đặt THÔNG THƯỜNG thay vì đọc registry
+    // (App Paths) — tránh phụ thuộc registry theo đúng yêu cầu, đủ dùng
+    // cho tuyệt đại đa số máy Windows cài Chrome/Edge kiểu mặc định.
+    private static TrinhDuyet? TimTrinhDuyet()
+    {
+        string[] duongDanChrome =
+        [
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Google", "Chrome", "Application", "chrome.exe"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "Google", "Chrome", "Application", "chrome.exe"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Google", "Chrome", "Application", "chrome.exe"),
+        ];
+        string[] duongDanEdge =
+        [
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "Microsoft", "Edge", "Application", "msedge.exe"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Microsoft", "Edge", "Application", "msedge.exe"),
+        ];
+
+        // Ưu tiên Chrome, không có mới rơi về Edge -- đúng yêu cầu.
+        var chrome = duongDanChrome.FirstOrDefault(File.Exists);
+        if (chrome != null) return new TrinhDuyet(chrome, LaEdge: false);
+
+        var edge = duongDanEdge.FirstOrDefault(File.Exists);
+        if (edge != null) return new TrinhDuyet(edge, LaEdge: true);
+
+        return null;
+    }
+
+    private sealed record ManHinhDich(int X, int Y, bool LaManHinhPhu);
+
+    [SupportedOSPlatform("windows")]
+    private static ManHinhDich ChonManHinhDich()
+    {
+        var manHinh = MonitorInterop.LayTatCaManHinh();
+        // KHÔNG hardcode "màn phụ nằm bên phải" — lấy đúng màn hình đầu
+        // tiên KHÔNG PHẢI primary theo toạ độ Windows đã tự tính (có
+        // thể âm, ở trái/trên/dưới tuỳ cách người dùng sắp xếp trong
+        // Windows Display Settings).
+        var manHinhPhu = manHinh.FirstOrDefault(m => !m.LaPrimary);
+        if (manHinhPhu != null)
+        {
+            return new ManHinhDich(manHinhPhu.X, manHinhPhu.Y, LaManHinhPhu: true);
+        }
+
+        // Chỉ có 1 màn hình (không Extend) -- mở tại màn hình chính,
+        // không có lựa chọn nào khác.
+        var chinh = manHinh.FirstOrDefault(m => m.LaPrimary) ?? manHinh.FirstOrDefault();
+        return new ManHinhDich(chinh?.X ?? 0, chinh?.Y ?? 0, LaManHinhPhu: false);
+    }
+}
+
+// Bọc riêng phần P/Invoke Win32 (EnumDisplayMonitors/GetMonitorInfo) —
+// đây là cách chuẩn, không cần System.Windows.Forms (vốn chỉ có ở
+// project WinForms) để lấy đúng toạ độ THẬT của từng màn hình đang cắm,
+// theo hệ toạ độ "virtual desktop" của Windows (primary luôn ở gốc 0,0,
+// màn khác có thể âm nếu đặt bên trái/trên primary).
+[SupportedOSPlatform("windows")]
+internal static class MonitorInterop
+{
+    [StructLayout(LayoutKind.Sequential)]
+    private struct RECT
+    {
+        public int Left;
+        public int Top;
+        public int Right;
+        public int Bottom;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MONITORINFO
+    {
+        public uint cbSize;
+        public RECT rcMonitor;
+        public RECT rcWork;
+        public uint dwFlags;
+    }
+
+    private const uint MONITORINFOF_PRIMARY = 0x1;
+
+    private delegate bool MonitorEnumProc(IntPtr hMonitor, IntPtr hdcMonitor, ref RECT lprcMonitor, IntPtr dwData);
+
+    [DllImport("user32.dll")]
+    private static extern bool EnumDisplayMonitors(IntPtr hdc, IntPtr lprcClip, MonitorEnumProc lpfnEnum, IntPtr dwData);
+
+    [DllImport("user32.dll", CharSet = CharSet.Auto)]
+    private static extern bool GetMonitorInfo(IntPtr hMonitor, ref MONITORINFO lpmi);
+
+    public sealed record ManHinhInfo(int X, int Y, int Rong, int Cao, bool LaPrimary);
+
+    public static List<ManHinhInfo> LayTatCaManHinh()
+    {
+        var ketQua = new List<ManHinhInfo>();
+        EnumDisplayMonitors(IntPtr.Zero, IntPtr.Zero, (IntPtr hMonitor, IntPtr hdcKhongDung, ref RECT rect, IntPtr duLieuKhongDung) =>
+        {
+            var info = new MONITORINFO { cbSize = (uint)Marshal.SizeOf<MONITORINFO>() };
+            if (GetMonitorInfo(hMonitor, ref info))
+            {
+                ketQua.Add(new ManHinhInfo(
+                    info.rcMonitor.Left,
+                    info.rcMonitor.Top,
+                    info.rcMonitor.Right - info.rcMonitor.Left,
+                    info.rcMonitor.Bottom - info.rcMonitor.Top,
+                    (info.dwFlags & MONITORINFOF_PRIMARY) != 0));
+            }
+            return true;
+        }, IntPtr.Zero);
+        return ketQua;
+    }
+}

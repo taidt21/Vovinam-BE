@@ -33,6 +33,7 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddSignalR();
 builder.Services.AddSingleton<LiveCourtStateStore>();
+builder.Services.AddSingleton<ManHinhCongKhaiLauncher>();
 
 // Tải ảnh VĐV từ URL WordPress về local. Tắt auto-redirect để service
 // tự kiểm tra lại từng URL redirect, tránh redirect vào localhost/private IP.
