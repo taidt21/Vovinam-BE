@@ -156,6 +156,12 @@ public class ManHinhCongKhaiLauncher
             psi.ArgumentList.Add($"--user-data-dir={thuMucProfile}");
             psi.ArgumentList.Add("--no-first-run");
             psi.ArgumentList.Add("--noerrdialogs");
+            // Màn hình công khai có tiếng chuông báo hiệp — cửa sổ kiosk
+            // này là 1 profile HOÀN TOÀN MỚI, chưa từng có click/gõ phím
+            // nào bên trong, nên mặc định trình duyệt có thể chặn phát
+            // âm thanh (chính sách autoplay). Cờ này bỏ hẳn yêu cầu đó,
+            // chỉ áp dụng cho đúng cửa sổ kiosk riêng biệt này.
+            psi.ArgumentList.Add("--autoplay-policy=no-user-gesture-required");
             if (trinhDuyet.LaEdge)
             {
                 // Riêng Edge cần thêm cờ này thì --kiosk mới thật sự full
