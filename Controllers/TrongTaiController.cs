@@ -92,6 +92,19 @@ public class TrongTaiController : ControllerBase
             if (loi is not null) return loi;
         }
 
+        // CHỈ nhả khoá đúng lúc frontend cũng coi thiết lập cũ hết hạn —
+        // frontend giờ CHỈ so courtId để quyết định bắt chọn lại (xem
+        // TrongTai.tsx) — kể cả chuyển về dự bị (ThuTuGiamDinh = null,
+        // CÙNG sân) máy đó vẫn ở lại (chỉ đổi màn hiển thị, không bị bắt
+        // chọn lại nữa), nên KHÔNG được nhả khoá lúc đó — nhả nhầm sẽ mở
+        // đường cho người khác chọn TRÙNG tên trong khi họ vẫn đang hoạt
+        // động (dù đang là dự bị) trên đúng máy đó.
+        var matSan = trongTai.CourtId != dto.CourtId;
+        if (matSan)
+        {
+            trongTai.DaChonThietBi = false;
+        }
+
         trongTai.HoTen = dto.HoTen;
         trongTai.CourtId = dto.CourtId;
         trongTai.ThuTuGiamDinh = dto.ThuTuGiamDinh;
@@ -167,6 +180,44 @@ public class TrongTaiController : ControllerBase
         return NoContent();
     }
 
+    // Mở — thiết bị trọng tài tự gọi lúc chọn tên mình ở màn thiết lập,
+    // không đăng nhập admin. Cập nhật kiểu "UPDATE ... WHERE chưa ai
+    // chọn" ngay ở tầng SQL (ExecuteUpdateAsync) thay vì đọc lên rồi ghi
+    // xuống — để 2 thiết bị lỡ bấm trúng cùng 1 tên trong đúng 1 tích
+    // tắc thì CHỈ ĐÚNG 1 request thắng, không có kẽ hở đọc-rồi-ghi khiến
+    // cả 2 đều tưởng mình chọn thành công.
+    [HttpPost("{id}/chon")]
+    public async Task<IActionResult> Chon(Guid id)
+    {
+        var soHangDoi = await _db.TrongTais
+            .Where(t => t.Id == id && !t.DaChonThietBi)
+            .ExecuteUpdateAsync(s => s.SetProperty(t => t.DaChonThietBi, true));
+
+        if (soHangDoi == 0)
+        {
+            var tonTai = await _db.TrongTais.AnyAsync(t => t.Id == id);
+            return tonTai
+                ? Conflict("Tên này vừa được người khác chọn mất — tải lại danh sách rồi chọn tên khác.")
+                : NotFound();
+        }
+
+        await _hub.Clients.All.SendAsync("TrongTaiChanged");
+        return NoContent();
+    }
+
+    // Gọi lúc thiết bị bấm "Đổi tên/thiết lập lại" — nhả tên ra cho
+    // người khác (hoặc chính người này trên máy khác) chọn lại được.
+    [HttpPost("{id}/bo-chon")]
+    public async Task<IActionResult> BoChon(Guid id)
+    {
+        await _db.TrongTais
+            .Where(t => t.Id == id)
+            .ExecuteUpdateAsync(s => s.SetProperty(t => t.DaChonThietBi, false));
+
+        await _hub.Clients.All.SendAsync("TrongTaiChanged");
+        return NoContent();
+    }
+
     // Báo lỗi rõ ràng thay vì để DB ném lỗi unique-index khó hiểu khi 2
     // người bị gán trùng số Giám định trong cùng 1 sân.
     private async Task<ActionResult?> KiemTraTrungSo(string? courtId, int thuTu, Guid? boQuaId)
@@ -184,5 +235,6 @@ public class TrongTaiController : ControllerBase
         ThuTuGiamDinh = t.ThuTuGiamDinh,
         DonVi = t.DonVi,
         AnhDaiDien = t.AnhDaiDien,
+        DaChonThietBi = t.DaChonThietBi,
     };
 }

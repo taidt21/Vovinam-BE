@@ -22,6 +22,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<QuyenLiveSnapshot> QuyenLiveSnapshots => Set<QuyenLiveSnapshot>();
     public DbSet<BanThuKyAccount> BanThuKyAccounts => Set<BanThuKyAccount>();
     public DbSet<TheVdvLogo> TheVdvLogos => Set<TheVdvLogo>();
+    public DbSet<CanBoDoan> CanBoDoans => Set<CanBoDoan>();
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);

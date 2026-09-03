@@ -8,6 +8,7 @@ public class TrongTaiDto
     public int? ThuTuGiamDinh { get; set; }
     public string? DonVi { get; set; }
     public string? AnhDaiDien { get; set; }
+    public bool DaChonThietBi { get; set; }
 }
 
 public class TrongTaiUpsertDto

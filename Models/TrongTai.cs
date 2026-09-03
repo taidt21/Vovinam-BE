@@ -17,4 +17,11 @@ public class TrongTai
     // gì tới việc gán sân/chấm điểm ở trên.
     public string? DonVi { get; set; }
     public string? AnhDaiDien { get; set; } // "/uploads/trong-tai/xxx.jpg"
+
+    // true = đã có 1 thiết bị chọn đúng tên này ở màn "Trọng tài" — chặn
+    // thiết bị KHÁC chọn trùng tên (2 máy cùng tưởng mình là 1 người,
+    // gửi điểm lẫn lộn không biết của ai). Không liên quan gì tới
+    // CourtId/ThuTuGiamDinh (đó là BTC gán sân, cái này là THIẾT BỊ tự
+    // nhận diện danh tính).
+    public bool DaChonThietBi { get; set; }
 }

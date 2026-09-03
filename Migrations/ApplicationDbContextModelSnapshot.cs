@@ -79,6 +79,33 @@ namespace vovinam_backend.Migrations
                     b.ToTable("BanThuKyAccounts");
                 });
 
+            modelBuilder.Entity("VovinamApi.Models.CanBoDoan", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AnhDaiDien")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("HoTen")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("TeamId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("VaiTro")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TeamId");
+
+                    b.ToTable("CanBoDoans");
+                });
+
             modelBuilder.Entity("VovinamApi.Models.CompetitionEvent", b =>
                 {
                     b.Property<Guid>("Id")
@@ -440,6 +467,9 @@ namespace vovinam_backend.Migrations
                     b.Property<string>("CourtId")
                         .HasColumnType("TEXT");
 
+                    b.Property<bool>("DaChonThietBi")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("DonVi")
                         .HasColumnType("TEXT");
 
@@ -463,6 +493,17 @@ namespace vovinam_backend.Migrations
                 {
                     b.HasOne("VovinamApi.Models.Team", "Team")
                         .WithMany("Athletes")
+                        .HasForeignKey("TeamId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Team");
+                });
+
+            modelBuilder.Entity("VovinamApi.Models.CanBoDoan", b =>
+                {
+                    b.HasOne("VovinamApi.Models.Team", "Team")
+                        .WithMany()
                         .HasForeignKey("TeamId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();

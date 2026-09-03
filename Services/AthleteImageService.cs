@@ -34,23 +34,25 @@ public sealed class AthleteImageService
         _trustedLocalHosts = new HashSet<string>(trusted, StringComparer.OrdinalIgnoreCase);
     }
 
-    public bool IsManagedLocalPath(string? value)
+    public bool IsManagedLocalPath(string? value, string folder = "athletes")
         => !string.IsNullOrWhiteSpace(value)
-           && value.StartsWith("/uploads/athletes/", StringComparison.OrdinalIgnoreCase);
+           && value.StartsWith($"/uploads/{folder}/", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
-    /// Nhận URL ảnh từ WordPress, tải về wwwroot/uploads/athletes và trả
-    /// đường dẫn local dạng /uploads/athletes/xxx.jpg.
-    /// Nếu tải thất bại trả null để việc import VĐV vẫn tiếp tục.
+    /// Nhận URL ảnh từ WordPress, tải về wwwroot/uploads/{folder} và trả
+    /// đường dẫn local dạng /uploads/{folder}/xxx.jpg. folder mặc định
+    /// "athletes" — giữ nguyên hành vi cũ cho VĐV, chỗ gọi khác (cán bộ
+    /// đoàn...) truyền rõ folder riêng để không lẫn ảnh giữa các loại.
+    /// Nếu tải thất bại trả null để việc import vẫn tiếp tục.
     /// </summary>
-    public async Task<string?> TryDownloadAsync(string? source, CancellationToken cancellationToken = default)
+    public async Task<string?> TryDownloadAsync(string? source, CancellationToken cancellationToken = default, string folder = "athletes")
     {
         var raw = source?.Trim();
         if (string.IsNullOrWhiteSpace(raw)) return null;
 
         // Khi PUT VĐV, frontend gửi lại đường dẫn local hiện có thì giữ nguyên,
         // tuyệt đối không cố tải lại nó qua HTTP.
-        if (IsManagedLocalPath(raw)) return raw;
+        if (IsManagedLocalPath(raw, folder)) return raw;
 
         if (!Uri.TryCreate(raw, UriKind.Absolute, out var uri)
             || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
@@ -98,11 +100,11 @@ public sealed class AthleteImageService
                 ? Path.Combine(_env.ContentRootPath, "wwwroot")
                 : _env.WebRootPath;
 
-            var folder = Path.Combine(webRoot, "uploads", "athletes");
-            Directory.CreateDirectory(folder);
+            var folderPath = Path.Combine(webRoot, "uploads", folder);
+            Directory.CreateDirectory(folderPath);
 
             var fileName = $"{Guid.NewGuid():N}{extension}";
-            var fullPath = Path.Combine(folder, fileName);
+            var fullPath = Path.Combine(folderPath, fileName);
             createdFile = fullPath;
 
             await using var input = await response.Content.ReadAsStreamAsync(cancellationToken);
@@ -135,7 +137,7 @@ public sealed class AthleteImageService
             }
 
             createdFile = null; // file hoàn chỉnh, không dọn ở catch/finally
-            return $"/uploads/athletes/{fileName}";
+            return $"/uploads/{folder}/{fileName}";
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
@@ -151,9 +153,9 @@ public sealed class AthleteImageService
         }
     }
 
-    public void DeleteLocalFile(string? localPath)
+    public void DeleteLocalFile(string? localPath, string folder = "athletes")
     {
-        if (!IsManagedLocalPath(localPath)) return;
+        if (!IsManagedLocalPath(localPath, folder)) return;
 
         try
         {
@@ -163,13 +165,13 @@ public sealed class AthleteImageService
 
             // Chỉ lấy filename để không cho path traversal từ dữ liệu DB.
             var fileName = Path.GetFileName(localPath!.Replace('\\', '/'));
-            var fullPath = Path.Combine(webRoot, "uploads", "athletes", fileName);
+            var fullPath = Path.Combine(webRoot, "uploads", folder, fileName);
             TryDeletePhysicalFile(fullPath);
         }
         catch (Exception ex)
         {
             // Xóa file thất bại không được làm hỏng thao tác DB.
-            _logger.LogWarning(ex, "Không xóa được ảnh local của VĐV: {Path}", localPath);
+            _logger.LogWarning(ex, "Không xóa được ảnh local: {Path}", localPath);
         }
     }
 

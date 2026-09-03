@@ -261,6 +261,23 @@ public class MatchHub : Hub
         if (mau != "do" && mau != "xanh") return;
         if (diem != 1 && diem != 2) return;
 
+        // Chặn dự bị bấm điểm — CHỈ tin đúng danh sách CSDL ngay lúc này
+        // (không tin thiết bị tự khai mình đang active), vì màn chấm điểm
+        // sắp tới sẽ không còn tự đá dự bị về màn chọn lại nữa (họ ở lại
+        // đúng màn chấm, chỉ hiện thêm banner "đang dự bị") — không có chốt
+        // chặn Ở ĐÂY thì 1 dự bị lỡ tay bấm nhầm sẽ được tính điểm thật.
+        if (!Guid.TryParse(giamDinhId, out var giamDinhGuid))
+        {
+            return;
+        }
+        var dangActive = await _db.TrongTais.AnyAsync(t =>
+            t.Id == giamDinhGuid && t.CourtId == courtId && t.ThuTuGiamDinh != null);
+        if (!dangActive)
+        {
+            await Clients.Caller.SendAsync("PressRejected", "Bạn đang là dự bị (chưa được xếp vị trí giám định) — không thể chấm điểm lúc này.");
+            return;
+        }
+
         var matchState = _store.GetMatchState(courtId);
         var trangThai = matchState?["trangThai"]?.GetValue<string>();
         if (trangThai != "dang_thi")

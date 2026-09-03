@@ -1,0 +1,1 @@
+import{a as e,i as t,n,r,t as i}from"./api-CUEIc9DX.js";function a(){return n(`/trong-tai`)}function o(e){return r(`/trong-tai`,e)}function s(e,n){return t(`/trong-tai/${e}`,n)}function c(e){return i(`/trong-tai/${e}`)}function l(t,n){let r=new FormData;return r.append(`file`,n),e(`/trong-tai/${t}/anh`,r)}export{l as a,s as i,c as n,a as r,o as t};
