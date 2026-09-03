@@ -1,0 +1,1 @@
+import{n as e,r as t,t as n}from"./api-CUEIc9DX.js";function r(){return e(`/quyen-luot-hoan-thanh`)}function i(e){return t(`/quyen-luot-hoan-thanh`,e)}function a(e,t,r){let i=new URLSearchParams({eventId:e});return t&&i.set(`athleteId`,t),r&&i.set(`teamId`,r),n(`/quyen-luot-hoan-thanh?${i.toString()}`)}export{i as n,a as r,r as t};

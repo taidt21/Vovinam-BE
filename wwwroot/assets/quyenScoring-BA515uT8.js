@@ -1,1 +1,0 @@
-function e(e){return e.length===5?[...e].sort((e,t)=>e-t).slice(1,4).reduce((e,t)=>e+t,0):null}export{e as t};

@@ -21,9 +21,15 @@ public class MatchesController : ControllerBase
         _db = db;
         _hub = hub;
     }
-    // Bàn thư ký dùng thẳng 2 endpoint này hàng ngày (đọc danh sách trận,
-    // sửa từng trận khi vận hành) — cho phép cả 2 vai trò.
-    [Authorize(Roles = "Admin,BanThuKy")]
+    // Đọc danh sách trận — CỐ TÌNH để mở, không yêu cầu đăng nhập. Màn
+    // hình công khai (/man-hinh-cong-khai, không ai đăng nhập gì cả) cần
+    // gọi đúng API này để tính "trận số" hiển thị — trước đây chặn
+    // Admin/BanThuKy ở GET này khiến hồ sơ trình duyệt kiosk (mới tinh,
+    // chưa từng đăng nhập) nhận lỗi 401, bị code xử lý lỗi chung tự đá
+    // thẳng về trang đăng nhập admin. Đây chỉ là ĐỌC (không sửa được gì
+    // qua endpoint này), nên mở công khai không phát sinh rủi ro ghi đè
+    // dữ liệu — các thao tác SỬA (UpdateOne/ReplaceForEvent) bên dưới
+    // vẫn giữ nguyên yêu cầu đăng nhập như cũ.
     [HttpGet]
     public async Task<ActionResult<List<MatchDto>>> GetAll()
     {
