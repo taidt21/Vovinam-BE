@@ -149,6 +149,19 @@ public class MatchHub : Hub
         });
     }
 
+    // Bàn thư ký cộng/trừ điểm tay (khác hẳn PressLight — đó là trọng
+    // tài bấm đèn, đồng thuận tự động). Điểm số thật vẫn do FRONTEND tự
+    // tính rồi gửi qua PublishMatchState như trước (MatchState là 1 khối
+    // JSON chung, không tách riêng field điểm ở backend) — hub method
+    // này CHỈ lo phần ghi log, dùng lại đúng LogEntry/LogEntryAdded đã
+    // có sẵn cho đèn giám định, để Nhật ký trận đấu hiện đủ MỌI thay đổi
+    // điểm ở cùng 1 chỗ, không tách rời nhau.
+    public async Task GhiLogDieuChinhDiem(string courtId, string noiDung)
+    {
+        var log = _store.AddLog(courtId, noiDung);
+        await Clients.Group(GroupName(courtId)).SendAsync("LogEntryAdded", courtId, log);
+    }
+
     public async Task ClearMatchState(string courtId)
     {
         await _store.WithCourtLockAsync(courtId, async () =>
