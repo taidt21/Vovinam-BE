@@ -22,9 +22,22 @@ public class LiveCourtStateStore
 
     public class LogEntry
     {
+        // Cần ID riêng để "hoàn tác" xoá được ĐÚNG dòng log tương ứng
+        // (không phải xoá đại dòng cuối — log này DÙNG CHUNG cho cả đèn
+        // giám định lẫn điều chỉnh tay của CẢ 2 bên, dòng cuối chưa chắc
+        // đúng là dòng cần xoá nếu có sự kiện khác xen vào giữa).
+        public string Id { get; set; } = Guid.NewGuid().ToString("N");
         public DateTimeOffset Luc { get; set; }
         public string NoiDung { get; set; } = "";
         public string? MatchTimeLabel { get; set; } // "Hiệp 1 - 00:30" — null nếu không tính được
+
+        // Trọng tài liên quan trực tiếp tới dòng này (VD người vừa bấm
+        // đèn) — null với các dòng KHÔNG gắn với đúng 1 người cụ thể
+        // (BTK điều chỉnh tay, hệ thống ghi điểm khi đủ đồng thuận...).
+        // Dùng để lọc "chỉ hiện nhật ký của riêng mình" bên màn hình
+        // trọng tài — so trực tiếp theo Id thay vì so tên (tên trùng
+        // nhau vẫn có thể xảy ra, Id thì không).
+        public string? GiamDinhId { get; set; }
     }
 
     private readonly ConcurrentDictionary<string, CourtState> _courts = new();
@@ -114,13 +127,18 @@ public class LiveCourtStateStore
     // ===== Log thời gian thực =====
     public List<LogEntry> GetLog(string courtId) => _logs.GetOrAdd(courtId, _ => new List<LogEntry>());
 
-    public LogEntry AddLog(string courtId, string noiDung)
+    public LogEntry AddLog(string courtId, string noiDung, string? giamDinhId = null, string? matchTimeLabel = null)
     {
         var entry = new LogEntry
         {
             Luc = DateTimeOffset.UtcNow,
             NoiDung = noiDung,
-            MatchTimeLabel = ComputeMatchTimeLabel(courtId),
+            // Ưu tiên nhãn client tự tính gửi lên (đáng tin hơn — client
+            // luôn có sẵn state đầy đủ ngay lúc đó). Chỉ tự tính lại ở
+            // đây nếu client không gửi kèm (tương thích ngược, phòng có
+            // lời gọi cũ nào chưa cập nhật).
+            MatchTimeLabel = matchTimeLabel ?? ComputeMatchTimeLabel(courtId),
+            GiamDinhId = giamDinhId,
         };
         var log = _logs.GetOrAdd(courtId, _ => new List<LogEntry>());
         lock (log)
@@ -129,6 +147,20 @@ public class LiveCourtStateStore
             if (log.Count > 300) log.RemoveAt(0); // chặn phình vô hạn nếu quên clear giữa các trận
         }
         return entry;
+    }
+
+    // Xoá đúng 1 dòng log theo Id — dùng cho "hoàn tác" điều chỉnh điểm
+    // tay: xoá hẳn dòng gốc thay vì thêm 1 dòng "hoàn tác" mới, để log
+    // trông như chưa từng có thao tác đó. Trả về true nếu tìm thấy và
+    // xoá được — false nếu Id không còn tồn tại (VD log đã bị dọn do
+    // vượt 300 dòng, hoặc trận đã bị xoá/reset từ trước).
+    public bool RemoveLog(string courtId, string id)
+    {
+        if (!_logs.TryGetValue(courtId, out var log)) return false;
+        lock (log)
+        {
+            return log.RemoveAll(e => e.Id == id) > 0;
+        }
     }
 
     // Tính đúng "còn bao nhiêu giây" tại THỜI ĐIỂM GỌI HÀM NÀY — dùng

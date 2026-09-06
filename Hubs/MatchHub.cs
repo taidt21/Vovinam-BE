@@ -156,10 +156,35 @@ public class MatchHub : Hub
     // này CHỈ lo phần ghi log, dùng lại đúng LogEntry/LogEntryAdded đã
     // có sẵn cho đèn giám định, để Nhật ký trận đấu hiện đủ MỌI thay đổi
     // điểm ở cùng 1 chỗ, không tách rời nhau.
-    public async Task GhiLogDieuChinhDiem(string courtId, string noiDung)
+    //
+    // Trả về Id của dòng log vừa tạo — frontend giữ lại Id này (kèm
+    // theo mức điểm) trong ngăn xếp hoàn tác của từng bên, để lúc hoàn
+    // tác gọi đúng XoaLogDieuChinhDiem xoá lại ĐÚNG dòng này, không phải
+    // đoán/xoá đại dòng cuối.
+    //
+    // matchTimeLabel do CLIENT tự tính sẵn gửi lên (đáng tin hơn hẳn để
+    // backend tự đoán lại — client luôn có sẵn state đầy đủ ngay lúc
+    // đó, backend thì có thể đang thiếu, VD vừa restart) — xem đúng
+    // AddLog để biết cơ chế dự phòng nếu client không gửi.
+    public async Task<string> GhiLogDieuChinhDiem(string courtId, string noiDung, string? matchTimeLabel = null)
     {
-        var log = _store.AddLog(courtId, noiDung);
+        var log = _store.AddLog(courtId, noiDung, matchTimeLabel: matchTimeLabel);
         await Clients.Group(GroupName(courtId)).SendAsync("LogEntryAdded", courtId, log);
+        return log.Id;
+    }
+
+    // Hoàn tác điều chỉnh điểm tay — xoá HẲN dòng log gốc (không thêm
+    // dòng "hoàn tác" mới), để log trông như chưa từng có thao tác đó,
+    // đúng yêu cầu. Im lặng bỏ qua nếu Id không còn tồn tại (VD log đã
+    // bị dọn do quá 300 dòng, hoặc trận đã reset) — không có gì để báo
+    // lỗi, phía điểm số vẫn đã tự lùi lại đúng rồi (frontend tự xử lý
+    // riêng phần đó, không phụ thuộc kết quả gọi này).
+    public async Task XoaLogDieuChinhDiem(string courtId, string id)
+    {
+        if (_store.RemoveLog(courtId, id))
+        {
+            await Clients.Group(GroupName(courtId)).SendAsync("LogEntryRemoved", courtId, id);
+        }
     }
 
     public async Task ClearMatchState(string courtId)
@@ -269,7 +294,9 @@ public class MatchHub : Hub
     // mau: "do" | "xanh". diem: 1 hoặc 2 — đúng 4 nút trên màn trọng tài.
     // tenTrongTai: tên hiển thị (backend không có bảng trọng tài riêng,
     // lấy thẳng tên từ chính thiết bị gửi lên để ghi log dễ đọc).
-    public async Task PressLight(string courtId, string giamDinhId, string tenTrongTai, string mau, int diem)
+    // matchTimeLabel: do CLIENT tự tính sẵn gửi lên — xem đúng comment ở
+    // GhiLogDieuChinhDiem giải thích lý do không để backend tự đoán lại.
+    public async Task PressLight(string courtId, string giamDinhId, string tenTrongTai, string mau, int diem, string? matchTimeLabel = null)
     {
         if (mau != "do" && mau != "xanh") return;
         if (diem != 1 && diem != 2) return;
@@ -291,8 +318,12 @@ public class MatchHub : Hub
             return;
         }
 
-        var matchState = _store.GetMatchState(courtId);
-        var trangThai = matchState?["trangThai"]?.GetValue<string>();
+        // Đọc nhanh để kiểm tra trạng thái — CHƯA khoá, chỉ để lọc sớm,
+        // tránh tính toán đồng thuận vô ích khi trận rõ ràng chưa/không
+        // còn đang thi. Đọc lại LẦN NỮA, ĐÃ khoá, ngay trước khi thật sự
+        // ghi điểm bên dưới — xem lý do ở đúng chỗ đó.
+        var matchStateChoNhanh = _store.GetMatchState(courtId);
+        var trangThai = matchStateChoNhanh?["trangThai"]?.GetValue<string>();
         if (trangThai != "dang_thi")
         {
             await Clients.Caller.SendAsync("PressRejected", "Trận chưa bắt đầu hoặc đang tạm dừng — không tính điểm lúc này.");
@@ -309,7 +340,7 @@ public class MatchHub : Hub
         var luc = DateTimeOffset.UtcNow;
         var mauLabel = mau == "do" ? "Đỏ" : "Xanh";
 
-        var pressLog = _store.AddLog(courtId, $"{tenTrongTai} bấm {mauLabel} +{diem}");
+        var pressLog = _store.AddLog(courtId, $"{tenTrongTai} bấm {mauLabel} +{diem}", giamDinhId, matchTimeLabel);
         await Clients.OthersInGroup(GroupName(courtId)).SendAsync("LightPressed", courtId, giamDinhId, tenTrongTai, mau, diem, luc);
         await Clients.Group(GroupName(courtId)).SendAsync("LogEntryAdded", courtId, pressLog);
 
@@ -326,13 +357,24 @@ public class MatchHub : Hub
 
         await _store.WithCourtLockAsync(courtId, async () =>
         {
+            // Đọc lại state NGAY LÚC NÀY (đã khoá), KHÔNG dùng biến đọc từ
+            // trước đó ở trên (matchStateChoNhanh) — quãng thời gian giữa
+            // 2 lần đọc có 2 lượt await (kiểm tra dự bị + query cửa sổ
+            // đồng thuận), đủ để BTK vừa lúc đó gọi PublishMatchState
+            // (điều chỉnh tay/tạm dừng...) chen vào. Nếu vẫn dùng bản đọc
+            // cũ, ghi đè lại sẽ làm MẤT đúng thay đổi đó của BTK — dù cực
+            // hiếm khi trùng đúng khoảnh khắc, vẫn là lỗi thật, không nên
+            // để ngỏ khi đang xử lý điểm số một giải đấu thật.
+            var matchState = _store.GetMatchState(courtId);
+            if (matchState == null) return;
+
             var scoreKey = mau == "do" ? "diemChinhThucDo" : "diemChinhThucXanh";
-            var current = matchState![scoreKey]?.GetValue<int>() ?? 0;
+            var current = matchState[scoreKey]?.GetValue<int>() ?? 0;
             matchState[scoreKey] = current + diemThat;
             matchState["capNhatLuc"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             _store.SetMatchState(courtId, matchState);
 
-            var scoreLog = _store.AddLog(courtId, $"✓ GHI ĐIỂM: {mauLabel} +{diemThat} ({soLuong}/5 trọng tài đồng thuận)");
+            var scoreLog = _store.AddLog(courtId, $"✓ GHI ĐIỂM: {mauLabel} +{diemThat} ({soLuong}/5 trọng tài đồng thuận)", matchTimeLabel: matchTimeLabel);
 
             await Clients.Group(GroupName(courtId)).SendAsync("MatchStateUpdated", courtId, matchState);
             await Clients.Group(GroupName(courtId)).SendAsync("ConsensusScored", courtId, mau, diemThat, soLuong, luc);

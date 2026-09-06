@@ -10,58 +10,71 @@ namespace VovinamApi.Services;
 // frontend đang chạy) cố tình khoá chặt quyền enum màn hình + điều
 // khiển cửa sổ của chính nó, còn 1 tiến trình .NET native thì không bị
 // giới hạn đó, gọi thẳng Win32 API được.
+//
+// QUAN TRỌNG — giới hạn không sửa được bằng code: cửa sổ kiosk luôn mở
+// TRÊN ĐÚNG CÁI MÁY ĐANG CHẠY BACKEND NÀY, không thể mở hộ trên 1 máy
+// khác (VD máy tính riêng của sân 2, nếu 2 sân dùng 2 máy khác nhau
+// cùng trỏ về 1 backend chung). Với setup "mỗi sân 1 máy riêng", máy
+// của sân đó phải tự mở trình duyệt bình thường tới đúng địa chỉ
+// /man-hinh-cong-khai?san=<id>&autoFullscreen=1 — không dùng nút "Mở
+// màn hình công khai" (nút đó chỉ có tác dụng nếu backend và màn hình
+// cần mở nằm CHUNG 1 máy).
 public class ManHinhCongKhaiLauncher
 {
     private readonly ILogger<ManHinhCongKhaiLauncher> _logger;
-    private Process? _tienTrinh;
     private readonly object _khoa = new();
 
-    // _tienTrinh ở trên chỉ sống trong bộ nhớ của ĐÚNG LẦN CHẠY backend
-    // hiện tại — nếu backend từng bị tắt/khởi động lại (rất hay xảy ra
-    // lúc đang test) trong khi cửa sổ kiosk CŨ vẫn còn sống, backend MỚI
-    // khởi động lại sẽ có _tienTrinh = null, HOÀN TOÀN không biết cửa sổ
-    // cũ đó tồn tại — "Mở" sẽ mở thêm 1 cửa sổ MỚI chồng lên, cửa sổ cũ
-    // "mồ côi" không ai đóng được nữa, và cửa sổ đang hiện ra trước mắt
-    // rất có thể lại là cửa sổ CŨ (che khuất/đứng trước cửa sổ mới).
-    // Ghi PID ra 1 file cạnh profile kiosk để BẤT KỲ lần chạy backend
-    // nào (kể cả sau khi restart) cũng đọc lại được, tìm và đóng đúng
-    // tiến trình cũ trước khi mở tiến trình mới.
-    private static string DuongDanFilePid =>
-        Path.Combine(AppContext.BaseDirectory, "kiosk-profile", "kiosk.pid");
+    // TRƯỚC ĐÂY: 1 Process duy nhất cho CẢ backend, không phân biệt sân
+    // nào — 2 sân cùng dùng chung 1 backend (setup nhiều sân trên cùng 1
+    // máy, nhiều màn hình) thì sân này bấm "Mở" sẽ bị hiểu nhầm là "đã
+    // mở sẵn rồi", tự đóng mất cửa sổ của sân kia rồi mở đè cửa sổ mới.
+    // Giờ theo dõi riêng theo TỪNG courtId — mở/đóng sân này không đụng
+    // gì tới sân khác đang mở trên cùng máy.
+    private readonly Dictionary<string, (Process TienTrinh, ManHinhDich ManHinh)> _theoSan = new();
+
+    private static string DuongDanFilePid(string courtId) =>
+        Path.Combine(AppContext.BaseDirectory, "kiosk-profile", $"kiosk-{SanitizeTenFile(courtId)}.pid");
+
+    // courtId là GUID/id nội bộ nên hầu như luôn an toàn làm tên file
+    // sẵn — lọc lại cho chắc, phòng id nào đó lỡ chứa ký tự không hợp lệ
+    // trong tên file Windows.
+    private static string SanitizeTenFile(string s)
+    {
+        foreach (var c in Path.GetInvalidFileNameChars()) s = s.Replace(c, '_');
+        return s;
+    }
 
     public ManHinhCongKhaiLauncher(ILogger<ManHinhCongKhaiLauncher> logger)
     {
         _logger = logger;
     }
 
-    // Coi là "đang chạy" khi tiến trình mình từng mở vẫn còn sống —
+    // Coi là "đang chạy" khi tiến trình của ĐÚNG sân này vẫn còn sống —
     // nếu user tự tay đóng cửa sổ đó (Alt+F4...) thì HasExited tự lên
     // true, lần bấm "Mở" tiếp theo sẽ coi như chưa có gì, mở lại bình
     // thường. KHÔNG có cơ chế nào coi 1 process TRÌNH DUYỆT KHÁC (do
     // user tự mở tay) là "đang chạy" — chỉ theo dõi đúng process do
     // chính hàm Mo() bên dưới tạo ra.
-    public bool DangChay
+    public bool DangChay(string courtId)
     {
-        get
+        lock (_khoa)
         {
-            lock (_khoa)
-            {
-                return _tienTrinh != null && !_tienTrinh.HasExited;
-            }
+            return _theoSan.TryGetValue(courtId, out var t) && !t.TienTrinh.HasExited;
         }
     }
 
-    // Đóng đúng tiến trình đã lưu PID trong file (nếu có và nếu nó
-    // TRÙNG ĐÚNG tên trình duyệt — tránh trường hợp cực hiếm PID cũ đã
-    // bị hệ điều hành cấp phát lại cho 1 chương trình khác hoàn toàn
-    // không liên quan). Không ném lỗi nếu không tìm thấy — bình thường
-    // (đã đóng từ trước, hoặc PID không còn hợp lệ).
-    private void DongTienTrinhMoCoi()
+    // Đóng đúng tiến trình đã lưu PID trong file của ĐÚNG sân này (nếu
+    // có và nếu nó TRÙNG ĐÚNG tên trình duyệt — tránh trường hợp cực
+    // hiếm PID cũ đã bị hệ điều hành cấp phát lại cho 1 chương trình
+    // khác hoàn toàn không liên quan). Không ném lỗi nếu không tìm
+    // thấy — bình thường (đã đóng từ trước, hoặc PID không còn hợp lệ).
+    private void DongTienTrinhMoCoi(string courtId)
     {
-        if (!File.Exists(DuongDanFilePid)) return;
+        var duongDan = DuongDanFilePid(courtId);
+        if (!File.Exists(duongDan)) return;
         try
         {
-            var noiDung = File.ReadAllText(DuongDanFilePid).Trim();
+            var noiDung = File.ReadAllText(duongDan).Trim();
             if (int.TryParse(noiDung, out var pidCu))
             {
                 var p = Process.GetProcessById(pidCu);
@@ -70,7 +83,7 @@ public class ManHinhCongKhaiLauncher
                      p.ProcessName.Equals("msedge", StringComparison.OrdinalIgnoreCase)))
                 {
                     p.Kill(entireProcessTree: true);
-                    _logger.LogInformation("Đã đóng tiến trình kiosk mồ côi (PID {Pid}) từ lần chạy backend trước", pidCu);
+                    _logger.LogInformation("Đã đóng tiến trình kiosk mồ côi (PID {Pid}) của sân {CourtId} từ lần chạy backend trước", pidCu, courtId);
                 }
             }
         }
@@ -81,43 +94,34 @@ public class ManHinhCongKhaiLauncher
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Đóng tiến trình kiosk mồ côi thất bại — vẫn thử mở cửa sổ mới");
+            _logger.LogWarning(ex, "Đóng tiến trình kiosk mồ côi (sân {CourtId}) thất bại — vẫn thử mở cửa sổ mới", courtId);
         }
     }
 
     [SupportedOSPlatform("windows")]
-    public (bool ThanhCong, string ThongBao) Mo(string url)
+    public (bool ThanhCong, string ThongBao) Mo(string courtId, string url)
     {
         lock (_khoa)
         {
-            // TRƯỚC ĐÂY: đã mở sẵn thì coi như xong việc, không làm gì
-            // thêm — nghe hợp lý (khỏi mở trùng cửa sổ), NHƯNG lại vô
-            // tình khiến "Mở" mất tác dụng nếu có 1 cửa sổ CŨ (build cũ)
-            // vẫn đang chạy từ trước — bấm "Mở" chẳng có gì xảy ra, vẫn
-            // nhìn thấy đúng cửa sổ cũ, hiểu lầm là "chưa cập nhật giao
-            // diện" dù backend đã build đúng bản mới. Giờ ĐÓNG cửa sổ cũ
-            // (nếu có) rồi LUÔN mở lại 1 cửa sổ MỚI — bấm "Mở" là chắc
-            // chắn có cửa sổ mới, tải lại từ đầu, không bao giờ bị kẹt ở
-            // bản cũ nữa.
-            if (_tienTrinh != null && !_tienTrinh.HasExited)
+            if (_theoSan.TryGetValue(courtId, out var cu) && !cu.TienTrinh.HasExited)
             {
                 try
                 {
-                    _tienTrinh.Kill(entireProcessTree: true);
-                    _tienTrinh.Dispose();
+                    cu.TienTrinh.Kill(entireProcessTree: true);
+                    cu.TienTrinh.Dispose();
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogWarning(ex, "Đóng cửa sổ cũ trước khi mở lại thất bại — vẫn thử mở cửa sổ mới");
+                    _logger.LogWarning(ex, "Đóng cửa sổ cũ của sân {CourtId} trước khi mở lại thất bại — vẫn thử mở cửa sổ mới", courtId);
                 }
-                _tienTrinh = null;
+                _theoSan.Remove(courtId);
             }
 
             // Bù cho trường hợp backend ĐÃ TỪNG restart kể từ lần mở
-            // trước — _tienTrinh ở trên chỉ biết trong PHẠM VI lần chạy
+            // trước — bộ nhớ ở trên chỉ biết trong PHẠM VI lần chạy
             // backend HIỆN TẠI, còn hàm này đọc lại PID đã lưu ra ĐĨA từ
             // TRƯỚC ĐÓ (có thể từ 1 lần chạy backend đã kết thúc).
-            DongTienTrinhMoCoi();
+            DongTienTrinhMoCoi(courtId);
 
             if (!OperatingSystem.IsWindows())
             {
@@ -130,12 +134,19 @@ public class ManHinhCongKhaiLauncher
                 return (false, "Không tìm thấy Chrome hoặc Edge đã cài trên máy này.");
             }
 
-            var manHinh = ChonManHinhDich();
+            // Né các màn hình sân KHÁC đang dùng (nếu nhiều sân cùng
+            // chạy trên đúng 1 máy này) — không mở chồng lên nhau.
+            var dangDung = _theoSan
+                .Where(kv => !kv.Value.TienTrinh.HasExited)
+                .Select(kv => (kv.Value.ManHinh.X, kv.Value.ManHinh.Y))
+                .ToHashSet();
+            var manHinh = ChonManHinhDich(dangDung);
 
-            // Profile riêng, KHÔNG đụng gì tới profile Chrome/Edge cá
-            // nhân của người dùng (lịch sử, đăng nhập, extension...) —
-            // nằm cạnh chỗ chạy .exe, tự tạo nếu chưa có.
-            var thuMucProfile = Path.Combine(AppContext.BaseDirectory, "kiosk-profile");
+            // Profile riêng THEO TỪNG SÂN — không dùng chung 1 profile
+            // cho nhiều sân (2 cửa sổ cùng --user-data-dir sẽ xung đột,
+            // Chrome/Edge không cho 2 tiến trình cùng dùng 1 profile
+            // cùng lúc).
+            var thuMucProfile = Path.Combine(AppContext.BaseDirectory, "kiosk-profile", SanitizeTenFile(courtId));
             Directory.CreateDirectory(thuMucProfile);
 
             // Thêm tham số vô hại vào cuối URL, đổi giá trị mỗi lần mở —
@@ -176,46 +187,46 @@ public class ManHinhCongKhaiLauncher
                 {
                     return (false, "Không khởi động được trình duyệt.");
                 }
-                _tienTrinh = p;
+                _theoSan[courtId] = (p, manHinh);
                 try
                 {
-                    File.WriteAllText(DuongDanFilePid, p.Id.ToString());
+                    File.WriteAllText(DuongDanFilePid(courtId), p.Id.ToString());
                 }
                 catch (Exception ex)
                 {
                     // Ghi file thất bại (VD ổ đĩa readonly) không được
                     // chặn mất việc đã mở màn hình thành công — chỉ mất
                     // đi khả năng tự dọn nếu lỡ backend restart sau này.
-                    _logger.LogWarning(ex, "Không ghi được file PID kiosk");
+                    _logger.LogWarning(ex, "Không ghi được file PID kiosk cho sân {CourtId}", courtId);
                 }
                 _logger.LogInformation(
-                    "Đã mở màn hình công khai (PID {Pid}) tại màn hình x={X},y={Y}",
-                    p.Id, manHinh.X, manHinh.Y);
+                    "Đã mở màn hình công khai cho sân {CourtId} (PID {Pid}) tại màn hình x={X},y={Y}",
+                    courtId, p.Id, manHinh.X, manHinh.Y);
                 return (true, manHinh.LaManHinhPhu
                     ? "Đã mở màn hình công khai ở màn hình mở rộng."
-                    : "Đã mở màn hình công khai (chỉ phát hiện 1 màn hình, mở tại màn hình chính).");
+                    : "Đã mở màn hình công khai (không còn màn hình mở rộng trống nào khác, mở tại màn hình chính).");
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Mở màn hình công khai thất bại");
+                _logger.LogError(ex, "Mở màn hình công khai cho sân {CourtId} thất bại", courtId);
                 return (false, $"Mở thất bại: {ex.Message}");
             }
         }
     }
 
-    public (bool ThanhCong, string ThongBao) Dong()
+    public (bool ThanhCong, string ThongBao) Dong(string courtId)
     {
         lock (_khoa)
         {
-            if (_tienTrinh == null || _tienTrinh.HasExited)
+            if (!_theoSan.TryGetValue(courtId, out var t) || t.TienTrinh.HasExited)
             {
-                _tienTrinh = null;
+                _theoSan.Remove(courtId);
                 // Backend có thể đã restart kể từ lần mở trước — thử
                 // đóng luôn theo PID đã lưu ra đĩa, phòng còn 1 cửa sổ
                 // mồ côi mà bộ nhớ hiện tại không biết gì về nó.
-                DongTienTrinhMoCoi();
-                XoaFilePid();
-                return (true, "Không có màn hình công khai nào đang mở.");
+                DongTienTrinhMoCoi(courtId);
+                XoaFilePid(courtId);
+                return (true, "Không có màn hình công khai nào đang mở cho sân này.");
             }
 
             try
@@ -224,27 +235,28 @@ public class ManHinhCongKhaiLauncher
                 // trình con (renderer, GPU...), chỉ Kill() đúng 1 PID gốc
                 // dễ để sót cửa sổ vẫn còn hiển thị. CHỈ kill đúng cây
                 // tiến trình này — không đụng tới trình duyệt khác user
-                // đang dùng, vì đây là tiến trình dùng --user-data-dir
-                // riêng, hoàn toàn tách biệt.
-                _tienTrinh.Kill(entireProcessTree: true);
-                _tienTrinh.Dispose();
-                _tienTrinh = null;
-                XoaFilePid();
+                // đang dùng (kể cả kiosk của SÂN KHÁC), vì mỗi sân dùng
+                // đúng 1 --user-data-dir riêng, hoàn toàn tách biệt.
+                t.TienTrinh.Kill(entireProcessTree: true);
+                t.TienTrinh.Dispose();
+                _theoSan.Remove(courtId);
+                XoaFilePid(courtId);
                 return (true, "Đã đóng màn hình công khai.");
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Đóng màn hình công khai thất bại");
+                _logger.LogError(ex, "Đóng màn hình công khai cho sân {CourtId} thất bại", courtId);
                 return (false, $"Đóng thất bại: {ex.Message}");
             }
         }
     }
 
-    private static void XoaFilePid()
+    private static void XoaFilePid(string courtId)
     {
         try
         {
-            if (File.Exists(DuongDanFilePid)) File.Delete(DuongDanFilePid);
+            var duongDan = DuongDanFilePid(courtId);
+            if (File.Exists(duongDan)) File.Delete(duongDan);
         }
         catch
         {
@@ -285,22 +297,31 @@ public class ManHinhCongKhaiLauncher
 
     private sealed record ManHinhDich(int X, int Y, bool LaManHinhPhu);
 
+    // Nhận thêm danh sách toạ độ CÁC MÀN HÌNH ĐÃ CÓ SÂN KHÁC ĐANG DÙNG —
+    // né ra, chọn màn phụ TRỐNG tiếp theo nếu máy này có nhiều hơn 1 màn
+    // phụ (VD 1 máy cắm 3 màn hình để chạy cùng lúc 2 sân). Hết màn phụ
+    // trống thì đành dùng lại màn chính — còn hơn không mở được gì.
     [SupportedOSPlatform("windows")]
-    private static ManHinhDich ChonManHinhDich()
+    private static ManHinhDich ChonManHinhDich(HashSet<(int X, int Y)> dangDung)
     {
         var manHinh = MonitorInterop.LayTatCaManHinh();
+        var manHinhPhu = manHinh.Where(m => !m.LaPrimary).ToList();
+
         // KHÔNG hardcode "màn phụ nằm bên phải" — lấy đúng màn hình đầu
-        // tiên KHÔNG PHẢI primary theo toạ độ Windows đã tự tính (có
-        // thể âm, ở trái/trên/dưới tuỳ cách người dùng sắp xếp trong
-        // Windows Display Settings).
-        var manHinhPhu = manHinh.FirstOrDefault(m => !m.LaPrimary);
-        if (manHinhPhu != null)
+        // tiên KHÔNG PHẢI primary và CHƯA sân nào khác đang dùng, theo
+        // toạ độ Windows đã tự tính (có thể âm, ở trái/trên/dưới tuỳ
+        // cách người dùng sắp xếp trong Windows Display Settings).
+        var manTrong = manHinhPhu.FirstOrDefault(m => !dangDung.Contains((m.X, m.Y)));
+        if (manTrong != null)
         {
-            return new ManHinhDich(manHinhPhu.X, manHinhPhu.Y, LaManHinhPhu: true);
+            return new ManHinhDich(manTrong.X, manTrong.Y, LaManHinhPhu: true);
         }
 
-        // Chỉ có 1 màn hình (không Extend) -- mở tại màn hình chính,
-        // không có lựa chọn nào khác.
+        // Không còn màn phụ nào trống (hết màn, hoặc chỉ có 1 màn phụ mà
+        // sân khác đã chiếm) -- mở tại màn hình chính, không có lựa chọn
+        // nào khác. Nhiều sân cùng rơi vào đây sẽ chồng cửa sổ lên nhau
+        // trên đúng màn chính — đây là giới hạn phần cứng thật (không đủ
+        // màn hình vật lý), không phải lỗi phần mềm.
         var chinh = manHinh.FirstOrDefault(m => m.LaPrimary) ?? manHinh.FirstOrDefault();
         return new ManHinhDich(chinh?.X ?? 0, chinh?.Y ?? 0, LaManHinhPhu: false);
     }
