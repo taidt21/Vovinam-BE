@@ -19,6 +19,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<TrongTai> TrongTais => Set<TrongTai>();
     public DbSet<QuyenLuotHoanThanh> QuyenLuotHoanThanhs => Set<QuyenLuotHoanThanh>();
     public DbSet<MatchLiveSnapshot> MatchLiveSnapshots => Set<MatchLiveSnapshot>();
+    public DbSet<MatchLogEntryRecord> MatchLogEntries => Set<MatchLogEntryRecord>();
     public DbSet<QuyenLiveSnapshot> QuyenLiveSnapshots => Set<QuyenLiveSnapshot>();
     public DbSet<BanThuKyAccount> BanThuKyAccounts => Set<BanThuKyAccount>();
     public DbSet<TheVdvLogo> TheVdvLogos => Set<TheVdvLogo>();
@@ -100,6 +101,20 @@ public class ApplicationDbContext : DbContext
             .WithOne()
             .HasForeignKey<MatchLiveSnapshot>(s => s.Id)
             .OnDelete(DeleteBehavior.Cascade);
+
+        // 1 trận có NHIỀU dòng nhật ký (khác MatchLiveSnapshot ở trên —
+        // đó là 1-1) — Cascade y hệt lý do trên, xoá Match thì dọn theo
+        // nhật ký của nó, không để rác lại. Đánh index theo MatchId vì
+        // truy vấn chính (màn "Xem lại") luôn lọc theo đúng 1 MatchId,
+        // không có index sẽ phải quét toàn bảng khi giải đấu đã tích luỹ
+        // hàng chục nghìn dòng log qua nhiều trận.
+        builder.Entity<MatchLogEntryRecord>()
+            .HasOne<Match>()
+            .WithMany()
+            .HasForeignKey(l => l.MatchId)
+            .OnDelete(DeleteBehavior.Cascade);
+        builder.Entity<MatchLogEntryRecord>()
+            .HasIndex(l => l.MatchId);
 
         // Quyền không có 1 entity "gốc" ổn định để làm quan hệ 1-1 như
         // Match ở trên (xem comment trong Model) — chỉ cần CourtId làm

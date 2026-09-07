@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json.Nodes;
 using VovinamApi.Data;
 using VovinamApi.DTOs;
 using VovinamApi.Hubs;
@@ -86,6 +87,50 @@ public class MatchesController : ControllerBase
         await _db.SaveChangesAsync();
         await _hub.Clients.All.SendAsync("MatchesChanged");
         return Ok(created.Select(ToDto));
+    }
+
+    // Dữ liệu đầy đủ cho tính năng "Xem lại trận đã kết thúc" — snapshot
+    // (điểm, hiệp, nhắc nhở, cảnh cáo, y tế... tại thời điểm kết thúc)
+    // + toàn bộ nhật ký trận đấu, đọc thẳng từ 2 bảng lưu lâu dài
+    // (MatchLiveSnapshots, MatchLogEntries) — KHÔNG đụng gì tới
+    // LiveCourtStateStore (RAM), vì trận này có thể đã kết thúc từ rất
+    // lâu, RAM của sân đó giờ đang phục vụ trận khác hoàn toàn rồi.
+    //
+    // CỐ TÌNH mở công khai (không yêu cầu đăng nhập) — y hệt lý do ở
+    // GetAll phía trên: chỉ đọc, không sửa được gì qua đây.
+    [HttpGet("{id}/xem-lai")]
+    public async Task<IActionResult> XemLai(Guid id)
+    {
+        var match = await _db.Matches.FindAsync(id);
+        if (match is null) return NotFound();
+
+        var snapshot = await _db.MatchLiveSnapshots.FindAsync(id);
+        var matchState = snapshot != null ? JsonNode.Parse(snapshot.StateJson) : null;
+
+        // .OrderBy(Luc) PHẢI đứng SAU ToListAsync() — SQLite không dịch
+        // được ORDER BY trên cột kiểu DateTimeOffset thành SQL hợp lệ
+        // (lỗi thật đã gặp: "SQLite does not support expressions of
+        // type 'DateTimeOffset' in ORDER BY clauses"). Đành lấy hết dữ
+        // liệu về trước (số dòng log của 1 trận không nhiều, không đáng
+        // lo hiệu năng), rồi sắp xếp lại trên C# (LINQ to Objects) thay
+        // vì để EF dịch sang SQL.
+        var log = (
+            await _db.MatchLogEntries
+                .Where(l => l.MatchId == id)
+                .Select(l => new
+                {
+                    id = l.Id.ToString(),
+                    luc = l.Luc,
+                    noiDung = l.NoiDung,
+                    matchTimeLabel = l.MatchTimeLabel,
+                    giamDinhId = l.GiamDinhId,
+                })
+                .ToListAsync()
+        )
+            .OrderBy(l => l.luc)
+            .ToList();
+
+        return Ok(new { matchState, log });
     }
 
     private static MatchDto ToDto(Match m) => new()

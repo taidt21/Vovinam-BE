@@ -79,6 +79,30 @@ public class MatchHub : Hub
         await _db.SaveChangesAsync();
     }
 
+    // Y hệt LuuSnapshotAsync ở trên nhưng cho 1 dòng Nhật ký — gọi NGAY
+    // lúc tạo log (không đợi tới lúc trận kết thúc mới lưu 1 lần), để
+    // backend có restart giữa chừng trận cũng không mất nhật ký từ
+    // trước đó. matchId lấy thẳng từ MatchState hiện có của sân (null
+    // thì bỏ qua, không có gì để gắn dòng log này vào).
+    private async Task LuuLogEntryAsync(string courtId, LiveCourtStateStore.LogEntry entry)
+    {
+        var matchState = _store.GetMatchState(courtId);
+        var matchIdNode = matchState?["matchId"];
+        if (matchIdNode == null) return;
+        if (!Guid.TryParse(matchIdNode.GetValue<string>(), out var matchId)) return;
+
+        _db.MatchLogEntries.Add(new MatchLogEntryRecord
+        {
+            Id = Guid.Parse(entry.Id),
+            MatchId = matchId,
+            Luc = entry.Luc,
+            NoiDung = entry.NoiDung,
+            MatchTimeLabel = entry.MatchTimeLabel,
+            GiamDinhId = entry.GiamDinhId,
+        });
+        await _db.SaveChangesAsync();
+    }
+
     public async Task JoinCourt(string courtId)
     {
         await Groups.AddToGroupAsync(Context.ConnectionId, GroupName(courtId));
@@ -170,6 +194,16 @@ public class MatchHub : Hub
     {
         var log = _store.AddLog(courtId, noiDung, matchTimeLabel: matchTimeLabel);
         await Clients.Group(GroupName(courtId)).SendAsync("LogEntryAdded", courtId, log);
+
+        try
+        {
+            await LuuLogEntryAsync(courtId, log);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Lưu nhật ký thất bại cho sân {CourtId} (GhiLogDieuChinhDiem)", courtId);
+        }
+
         return log.Id;
     }
 
@@ -184,10 +218,37 @@ public class MatchHub : Hub
         if (_store.RemoveLog(courtId, id))
         {
             await Clients.Group(GroupName(courtId)).SendAsync("LogEntryRemoved", courtId, id);
+
+            // Xoá luôn bản đã lưu DB — "hoàn tác" nghĩa là coi như thao
+            // tác đó CHƯA TỪNG xảy ra, không nên còn sót lại trong nhật
+            // ký lúc "Xem lại trận đã kết thúc" sau này.
+            try
+            {
+                if (Guid.TryParse(id, out var logId))
+                {
+                    var record = await _db.MatchLogEntries.FindAsync(logId);
+                    if (record != null)
+                    {
+                        _db.MatchLogEntries.Remove(record);
+                        await _db.SaveChangesAsync();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Xoá nhật ký đã lưu thất bại cho sân {CourtId}, dòng {Id} (XoaLogDieuChinhDiem)", courtId, id);
+            }
         }
     }
 
-    public async Task ClearMatchState(string courtId)
+    // xoaLuuTru: mặc định true (giữ nguyên hành vi cũ — "Bỏ, cho sân
+    // nghỉ" hoặc "Đấu lại từ đầu" thì xoá hẳn, không có gì đáng xem lại
+    // từ 1 lượt bị bỏ dở/làm lại). Truyền false khi trận THẬT SỰ đã kết
+    // thúc bình thường (BTK bấm "Xác nhận, qua trận tiếp theo") — GIỮ
+    // LẠI bản lưu để tính năng "Xem lại trận đã kết thúc" còn dữ liệu
+    // mà đọc, dù RAM của sân đó đã được dọn sạch để nhường cho trận kế
+    // tiếp.
+    public async Task ClearMatchState(string courtId, bool xoaLuuTru = true)
     {
         await _store.WithCourtLockAsync(courtId, async () =>
         {
@@ -200,7 +261,7 @@ public class MatchHub : Hub
             _store.ClearMatchState(courtId);
             await Clients.OthersInGroup(GroupName(courtId)).SendAsync("MatchStateCleared", courtId);
 
-            if (matchIdToDelete != null)
+            if (matchIdToDelete != null && xoaLuuTru)
             {
                 try
                 {
@@ -344,6 +405,15 @@ public class MatchHub : Hub
         await Clients.OthersInGroup(GroupName(courtId)).SendAsync("LightPressed", courtId, giamDinhId, tenTrongTai, mau, diem, luc);
         await Clients.Group(GroupName(courtId)).SendAsync("LogEntryAdded", courtId, pressLog);
 
+        try
+        {
+            await LuuLogEntryAsync(courtId, pressLog);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Lưu nhật ký thất bại cho sân {CourtId} (PressLight - bấm đèn)", courtId);
+        }
+
         // Đọc cửa sổ đồng thuận hiện hành từ Thiết lập giải mỗi lần bấm —
         // để BTC đổi giữa chừng giải là có hiệu lực ngay từ pha kế tiếp,
         // không cần restart hay đợi cache nào hết hạn.
@@ -387,6 +457,15 @@ public class MatchHub : Hub
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Lưu snapshot thất bại cho sân {CourtId} sau khi ghi điểm (PressLight)", courtId);
+            }
+
+            try
+            {
+                await LuuLogEntryAsync(courtId, scoreLog);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Lưu nhật ký thất bại cho sân {CourtId} (PressLight - ghi điểm)", courtId);
             }
         });
     }
