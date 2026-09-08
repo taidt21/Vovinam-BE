@@ -20,6 +20,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<QuyenLuotHoanThanh> QuyenLuotHoanThanhs => Set<QuyenLuotHoanThanh>();
     public DbSet<MatchLiveSnapshot> MatchLiveSnapshots => Set<MatchLiveSnapshot>();
     public DbSet<MatchLogEntryRecord> MatchLogEntries => Set<MatchLogEntryRecord>();
+    public DbSet<CourtSettings> CourtSettings => Set<CourtSettings>();
     public DbSet<QuyenLiveSnapshot> QuyenLiveSnapshots => Set<QuyenLiveSnapshot>();
     public DbSet<BanThuKyAccount> BanThuKyAccounts => Set<BanThuKyAccount>();
     public DbSet<TheVdvLogo> TheVdvLogos => Set<TheVdvLogo>();
@@ -120,6 +121,13 @@ public class ApplicationDbContext : DbContext
         // Match ở trên (xem comment trong Model) — chỉ cần CourtId làm
         // khoá chính thẳng, không có FK nào để cascade theo.
         builder.Entity<QuyenLiveSnapshot>()
+            .HasKey(s => s.CourtId);
+
+        // Y hệt QuyenLiveSnapshot ở trên — CourtId ("c1", "c2"...) làm
+        // khoá chính thẳng, không có Court entity nào trong DB để tham
+        // chiếu (sân được sinh động theo Tournament.SoSan, xem
+        // courts.ts phía frontend).
+        builder.Entity<CourtSettings>()
             .HasKey(s => s.CourtId);
     }
 }
