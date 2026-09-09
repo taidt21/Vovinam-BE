@@ -408,6 +408,29 @@ namespace vovinam_backend.Migrations
                     b.ToTable("QuyenResults");
                 });
 
+            modelBuilder.Entity("VovinamApi.Models.QuyenScoreLock", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("AthleteId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("EventId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset>("KhoaLuc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("TeamId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("QuyenScoreLocks");
+                });
+
             modelBuilder.Entity("VovinamApi.Models.Registration", b =>
                 {
                     b.Property<Guid>("Id")

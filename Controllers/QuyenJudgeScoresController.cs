@@ -33,9 +33,18 @@ public class QuyenJudgeScoresController : ControllerBase
     // kế — xem TrongTai/QuyenView.tsx) gọi thẳng PUT này để gửi điểm, nên
     // KHÔNG được để [Authorize] ở đây — có JWT đâu mà xác thực. Bảo vệ
     // endpoint này cần cơ chế khác (mã sân) chứ không phải role-based auth.
+    //
+    // CHÍNH VÌ endpoint này không có auth, "khoá điểm" (yêu cầu mới của
+    // Bàn thư ký) không thể chặn bằng role — chặn ngay tại đây, bất kể ai
+    // gọi: đã khoá thì từ chối thẳng bằng 409, không quan tâm nguồn gọi.
     [HttpPut]
     public async Task<ActionResult<QuyenJudgeScoreDto>> Upsert(QuyenJudgeScoreUpsertDto dto)
     {
+        var daKhoa = await _db.QuyenScoreLocks.AnyAsync(l =>
+            l.EventId == dto.EventId && l.AthleteId == dto.AthleteId && l.TeamId == dto.TeamId);
+        if (daKhoa)
+            return Conflict("Điểm của lượt này đã bị Bàn thư ký khoá, không thể gửi/sửa thêm.");
+
         var existing = await _db.QuyenJudgeScores.FirstOrDefaultAsync(s =>
             s.EventId == dto.EventId &&
             s.AthleteId == dto.AthleteId &&
@@ -68,6 +77,61 @@ public class QuyenJudgeScoresController : ControllerBase
 
         await _db.SaveChangesAsync();
         return Ok(ToDto(existing));
+    }
+
+    // Danh sách MỌI lượt đang bị khoá — CỐ TÌNH mở công khai (không auth),
+    // y hệt GetAll() điểm ở trên: cả màn hình BTK lẫn màn hình trọng tài
+    // (QuyenView.tsx, cũng không đăng nhập) đều cần đọc được để tự biết
+    // khoá/mở khoá mà hiện đúng giao diện — đây chỉ là ĐỌC, không sửa được
+    // gì qua endpoint này.
+    [HttpGet("locks")]
+    public async Task<ActionResult<List<QuyenScoreLockDto>>> GetLocks()
+    {
+        var locks = await _db.QuyenScoreLocks.ToListAsync();
+        return Ok(locks.Select(l => new QuyenScoreLockDto
+        {
+            EventId = l.EventId,
+            AthleteId = l.AthleteId,
+            TeamId = l.TeamId,
+        }));
+    }
+
+    [Authorize(Roles = "Admin,BanThuKy")]
+    [HttpPut("lock")]
+    public async Task<IActionResult> Lock(QuyenScoreLockDto dto)
+    {
+        var existing = await _db.QuyenScoreLocks.FirstOrDefaultAsync(l =>
+            l.EventId == dto.EventId && l.AthleteId == dto.AthleteId && l.TeamId == dto.TeamId);
+        if (existing == null)
+        {
+            _db.QuyenScoreLocks.Add(new QuyenScoreLock
+            {
+                Id = Guid.NewGuid(),
+                EventId = dto.EventId,
+                AthleteId = dto.AthleteId,
+                TeamId = dto.TeamId,
+                KhoaLuc = DateTimeOffset.UtcNow,
+            });
+            await _db.SaveChangesAsync();
+        }
+        return NoContent();
+    }
+
+    // Mở khoá — dành cho lúc BTK lỡ khoá nhầm, hoặc cần cho giám định sửa
+    // lại sau khi đã khoá (VD phát hiện lỗi sau khi khoá).
+    [Authorize(Roles = "Admin,BanThuKy")]
+    [HttpDelete("lock")]
+    public async Task<IActionResult> Unlock(
+        [FromQuery] Guid eventId, [FromQuery] Guid? athleteId, [FromQuery] Guid? teamId)
+    {
+        var existing = await _db.QuyenScoreLocks.FirstOrDefaultAsync(l =>
+            l.EventId == eventId && l.AthleteId == athleteId && l.TeamId == teamId);
+        if (existing != null)
+        {
+            _db.QuyenScoreLocks.Remove(existing);
+            await _db.SaveChangesAsync();
+        }
+        return NoContent();
     }
 
     // Cho thi lại 1 lượt = xoá sạch điểm CŨ của tất cả giám định cho ĐÚNG

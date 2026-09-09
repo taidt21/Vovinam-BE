@@ -1,0 +1,1 @@
+import{n as e}from"./api-CUEIc9DX.js";function t(){return e(`/performance-orders`)}export{t};

@@ -21,6 +21,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<MatchLiveSnapshot> MatchLiveSnapshots => Set<MatchLiveSnapshot>();
     public DbSet<MatchLogEntryRecord> MatchLogEntries => Set<MatchLogEntryRecord>();
     public DbSet<CourtSettings> CourtSettings => Set<CourtSettings>();
+    public DbSet<QuyenScoreLock> QuyenScoreLocks => Set<QuyenScoreLock>();
     public DbSet<QuyenLiveSnapshot> QuyenLiveSnapshots => Set<QuyenLiveSnapshot>();
     public DbSet<BanThuKyAccount> BanThuKyAccounts => Set<BanThuKyAccount>();
     public DbSet<TheVdvLogo> TheVdvLogos => Set<TheVdvLogo>();

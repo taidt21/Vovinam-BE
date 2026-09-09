@@ -25,3 +25,13 @@ public class QuyenJudgeScoreUpsertDto
     [Range(typeof(decimal), "0", "100")] public decimal Diem { get; set; }
     public string? ChiTietJson { get; set; }
 }
+
+// Dùng chung cho cả 3 endpoint liên quan tới khoá (lấy danh sách, khoá,
+// mở khoá) — chỉ cần đúng bộ khoá định danh 1 lượt quyền, không cần gì
+// thêm.
+public class QuyenScoreLockDto
+{
+    public Guid EventId { get; set; }
+    public Guid? AthleteId { get; set; }
+    public Guid? TeamId { get; set; }
+}
