@@ -1,0 +1,1 @@
+import{i as e,n as t}from"./api-CUEIc9DX.js";function n(e){return e.length===5?[...e].sort((e,t)=>e-t).slice(1,4).reduce((e,t)=>e+t,0):null}function r(){return t(`/matches`)}function i(t,n){return e(`/matches/${t}`,n)}function a(e){return t(`/matches/${e}/xem-lai`)}export{n as i,r as n,i as r,a as t};

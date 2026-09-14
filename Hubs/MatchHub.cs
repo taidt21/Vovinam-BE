@@ -152,6 +152,26 @@ public class MatchHub : Hub
         await Clients.Caller.SendAsync("CourtSnapshot", courtId, _store.GetSnapshot(courtId));
     }
 
+    // Tổng kết nội dung là state hiển thị độc lập. Không clear MatchState/
+    // QuyenState, không đổi ActiveMode/CourtResting và không đụng auto-next.
+    public async Task PublishEventSummary(string courtId, JsonElement summary)
+    {
+        var node = JsonNode.Parse(summary.GetRawText());
+        if (node == null) return;
+
+        var revision = _store.SetEventSummary(courtId, node);
+        await Clients.Group(GroupName(courtId))
+            .SendAsync("EventSummaryUpdated", courtId, summary, revision);
+    }
+
+    public async Task ClearEventSummary(string courtId)
+    {
+        if (_store.GetEventSummary(courtId) == null) return;
+        var revision = _store.ClearEventSummary(courtId);
+        await Clients.Group(GroupName(courtId))
+            .SendAsync("EventSummaryCleared", courtId, revision);
+    }
+
     public async Task PublishMatchState(string courtId, JsonElement matchState)
     {
         var node = JsonNode.Parse(matchState.GetRawText());
@@ -343,12 +363,23 @@ public class MatchHub : Hub
         if (mode == "doi_khang")
         {
             _store.SetDangNghiDoiKhang(courtId, dangNghi);
-            if (dangNghi) await ClearMatchState(courtId);
+            if (dangNghi)
+            {
+                await ClearMatchState(courtId);
+                // ClearMatchState broadcast cho OthersInGroup vì các flow cũ
+                // thường tự clear optimistic ở caller. Riêng SetCourtResting
+                // là command authoritative duy nhất nên caller cũng phải nhận clear.
+                await Clients.Caller.SendAsync("MatchStateCleared", courtId);
+            }
         }
         else
         {
             _store.SetDangNghiQuyen(courtId, dangNghi);
-            if (dangNghi) await ClearQuyenState(courtId);
+            if (dangNghi)
+            {
+                await ClearQuyenState(courtId);
+                await Clients.Caller.SendAsync("QuyenStateCleared", courtId);
+            }
         }
         await Clients.Group(GroupName(courtId)).SendAsync("CourtRestingUpdated", courtId, mode, dangNghi);
     }

@@ -11,6 +11,10 @@ public class LiveCourtStateStore
     {
         public JsonNode? MatchState { get; set; }
         public JsonNode? QuyenState { get; set; }
+        // State hiển thị tổng kết của nội dung vừa hoàn tất. Chỉ lưu RAM để
+        // đồng bộ BTK + màn hình công khai, không thay đổi kết quả trong DB.
+        public JsonNode? EventSummary { get; set; }
+        public long EventSummaryRevision { get; set; }
         public string? ActiveMode { get; set; } // "doi_khang" | "quyen" | null — tab BTK đang mở cho sân này
         // BTC bấm "X" gỡ trận/lượt đang chờ ở đúng 1 bên (đối kháng hoặc
         // quyền) — tạm ngưng tự động nhận trận/lượt kế tiếp cho ĐÚNG bên
@@ -69,10 +73,19 @@ public class LiveCourtStateStore
     public object GetSnapshot(string courtId)
     {
         var s = GetOrCreate(courtId);
+        JsonNode? eventSummary;
+        long eventSummaryRevision;
+        lock (s)
+        {
+            eventSummary = s.EventSummary;
+            eventSummaryRevision = s.EventSummaryRevision;
+        }
         return new
         {
             matchState = s.MatchState,
             quyenState = s.QuyenState,
+            eventSummary,
+            eventSummaryRevision,
             activeMode = s.ActiveMode,
             dangNghiDoiKhang = s.DangNghiDoiKhang,
             dangNghiQuyen = s.DangNghiQuyen,
@@ -108,6 +121,32 @@ public class LiveCourtStateStore
     }
     public JsonNode? GetQuyenState(string courtId) => GetOrCreate(courtId).QuyenState;
     public void ClearQuyenState(string courtId) => GetOrCreate(courtId).QuyenState = null;
+
+    public long SetEventSummary(string courtId, JsonNode summary)
+    {
+        var s = GetOrCreate(courtId);
+        lock (s)
+        {
+            s.EventSummary = summary;
+            return ++s.EventSummaryRevision;
+        }
+    }
+
+    public JsonNode? GetEventSummary(string courtId)
+    {
+        var s = GetOrCreate(courtId);
+        lock (s) return s.EventSummary;
+    }
+
+    public long ClearEventSummary(string courtId)
+    {
+        var s = GetOrCreate(courtId);
+        lock (s)
+        {
+            s.EventSummary = null;
+            return ++s.EventSummaryRevision;
+        }
+    }
 
     public void ClearMatchState(string courtId)
     {
