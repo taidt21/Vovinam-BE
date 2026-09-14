@@ -365,3 +365,4 @@ FodyWeavers.xsd
 
 # Ảnh VĐV tải từ WordPress lúc runtime — không commit vào Git.
 wwwroot/uploads/
+/wwwroot/index.html
