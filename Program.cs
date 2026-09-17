@@ -35,6 +35,9 @@ builder.Services.AddSignalR();
 builder.Services.AddSingleton<LiveCourtStateStore>();
 builder.Services.AddSingleton<ManHinhCongKhaiLauncher>();
 
+
+
+builder.Services.AddScoped<ExcelRegistrationImportService>();
 // Tải ảnh VĐV từ URL WordPress về local. Tắt auto-redirect để service
 // tự kiểm tra lại từng URL redirect, tránh redirect vào localhost/private IP.
 builder.Services

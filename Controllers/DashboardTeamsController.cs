@@ -25,7 +25,13 @@ public class DashboardTeamsController : ControllerBase
     public async Task<ActionResult<List<TeamDto>>> GetAll()
     {
         var teams = await _db.Teams
-            .Select(t => new TeamDto { Id = t.Id, Ten = t.Ten, SoVdv = t.Athletes.Count })
+            .Select(t => new TeamDto
+            {
+                Id = t.Id,
+                Ten = t.Ten,
+                LogoUrl = t.LogoUrl,
+                SoVdv = t.Athletes.Count
+            })
             .ToListAsync();
         return Ok(teams);
     }

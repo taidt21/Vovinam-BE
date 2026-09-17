@@ -15,7 +15,7 @@ namespace vovinam_backend.Migrations
         protected override void BuildModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
-            modelBuilder.HasAnnotation("ProductVersion", "8.0.30");
+            modelBuilder.HasAnnotation("ProductVersion", "8.0.31");
 
             modelBuilder.Entity("VovinamApi.Models.Athlete", b =>
                 {
@@ -459,6 +459,9 @@ namespace vovinam_backend.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("LogoUrl")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("Ten")
                         .IsRequired()
                         .HasColumnType("TEXT");
@@ -574,7 +577,7 @@ namespace vovinam_backend.Migrations
             modelBuilder.Entity("VovinamApi.Models.CanBoDoan", b =>
                 {
                     b.HasOne("VovinamApi.Models.Team", "Team")
-                        .WithMany()
+                        .WithMany("CanBoDoans")
                         .HasForeignKey("TeamId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -727,6 +730,8 @@ namespace vovinam_backend.Migrations
             modelBuilder.Entity("VovinamApi.Models.Team", b =>
                 {
                     b.Navigation("Athletes");
+
+                    b.Navigation("CanBoDoans");
                 });
 #pragma warning restore 612, 618
         }

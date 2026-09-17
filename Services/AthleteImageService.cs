@@ -81,8 +81,25 @@ public sealed class AthleteImageService
                 "image/png" => ".png",
                 "image/webp" => ".webp",
                 "image/avif" => ".avif",
+                "image/svg+xml" => ".svg",
                 _ => null,
             };
+
+            // Một số web server WordPress trả logo bằng MIME chung
+            // (application/octet-stream). Với logo đơn vị, dùng thêm phần
+            // mở rộng URL đã biết để không bỏ sót file ảnh hợp lệ.
+            if (extension is null && folder.Equals("teams", StringComparison.OrdinalIgnoreCase))
+            {
+                extension = Path.GetExtension(uri.AbsolutePath).ToLowerInvariant() switch
+                {
+                    ".jpg" or ".jpeg" => ".jpg",
+                    ".png" => ".png",
+                    ".webp" => ".webp",
+                    ".avif" => ".avif",
+                    ".svg" => ".svg",
+                    _ => null,
+                };
+            }
 
             if (extension is null)
             {
